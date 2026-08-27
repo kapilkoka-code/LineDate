@@ -9,12 +9,12 @@ type DiscoveryFieldProps = {
 
 export function DiscoveryField({ selectedLetter, onSelect, onDismiss }: DiscoveryFieldProps) {
   return (
-    <section className="line-discovery-field line-view-enter" aria-label="Nearby anonymous letters">
+    <section className="line-discovery-field line-view-enter" aria-label="Fictional preview signals">
       <div className="line-field-grid" aria-hidden="true" />
       <div className="line-field-crosshair line-field-crosshair-top" aria-hidden="true" />
       <div className="line-field-crosshair line-field-crosshair-bottom" aria-hidden="true" />
-      <div className="line-field-label line-mono" data-testid="text-discovery-location">SECTOR 04 / AFTER DARK</div>
-      <div className="line-field-coordinates line-mono" aria-hidden="true">40°42'N / 74°00'W</div>
+      <div className="line-field-label line-mono" data-testid="text-discovery-location">PREVIEW FIELD / FICTIONAL SIGNALS</div>
+      <div className="line-field-coordinates line-mono" aria-hidden="true">NO LIVE LETTER DATA</div>
       <div className="line-field-note line-serif">Somewhere<br />nearby.</div>
       <div className="line-field-scan-line line-scan" aria-hidden="true" />
 

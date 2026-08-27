@@ -1,0 +1,241 @@
+Continue building the existing LINE application.
+
+STEP 1 is already completed.
+
+For STEP 2, add the real device geolocation foundation that LINE will need later.
+
+Do not rebuild the application from scratch. Work with the existing code and preserve the existing visual design, navigation, animations, and screens.
+
+OBJECTIVE
+
+Make LINE capable of obtaining the user’s real geographic position with their permission.
+
+This step is only about establishing a reliable location layer.
+
+Do NOT build the letter system yet.
+
+Do NOT build AR yet.
+
+Do NOT build authentication yet.
+
+1. LOCATION PERMISSION
+
+When the user enters the DISCOVER screen for the first time, show a polished location-permission interface.
+
+Explain:
+
+“LINE needs your location to connect you with things happening around you.”
+
+Then provide:
+
+“ENABLE LOCATION”
+
+and:
+
+“NOT NOW”
+
+Do not continuously ask for permission if the user has already denied it.
+
+Use the browser’s native Geolocation API.
+
+Do not use a fake location.
+
+2. REAL GPS LOCATION
+
+When the user chooses ENABLE LOCATION:
+
+Request the device’s current geographic position using the browser Geolocation API.
+
+Retrieve:
+
+* latitude
+* longitude
+* accuracy
+* timestamp
+
+Do not display the user’s exact latitude/longitude in the normal UI.
+
+The application should store the current location in React state or an appropriate location hook.
+
+Create a reusable location hook, for example:
+
+useLocation()
+
+It should expose an appropriate state such as:
+
+* location
+* loading
+* permission status
+* error
+
+Use TypeScript types.
+
+3. LOCATION STATUS
+
+After successful permission and location retrieval, replace the previous placeholder status with something like:
+
+“LOCATION ACTIVE”
+
+Show a small subtle location indicator.
+
+Also display:
+
+“Accuracy: approximately XXm”
+
+where appropriate.
+
+Do not expose raw coordinates to the user unless needed for development/debugging.
+
+4. LOCATION ERRORS
+
+Handle all important failure states gracefully.
+
+Examples:
+
+* permission denied
+* location unavailable
+* request timeout
+* browser does not support geolocation
+
+Do not show technical browser errors directly to users.
+
+Instead provide friendly messages.
+
+Example:
+
+“LINE couldn’t determine your location.”
+
+“Please check your device location settings and try again.”
+
+Provide:
+
+“TRY AGAIN”
+
+where appropriate.
+
+5. LOCATION REFRESH
+
+Add a small location refresh/recenter control to the DISCOVER screen.
+
+When pressed, request an updated position.
+
+Do not constantly request GPS updates unless necessary.
+
+For now, a manual refresh plus the initial location request is sufficient.
+
+6. MOCK LETTERS MUST REMAIN MOCK
+
+The existing fictional letter markers from STEP 1 should remain.
+
+However, clearly separate them from the real user location.
+
+Do NOT pretend that the mock letters are actually located near the user.
+
+Do not calculate fake distances from the user’s real GPS position.
+
+They are still demonstration objects only.
+
+If necessary, label the development environment subtly as:
+
+“PREVIEW”
+
+so that users cannot mistake the mock letters for real nearby letters.
+
+7. MAP
+
+Do NOT add a map yet.
+
+The future LINE interface should primarily use the camera/AR experience rather than becoming a conventional map application.
+
+A map may be considered in a later step if necessary.
+
+8. LOCATION ARCHITECTURE
+
+Create a clean abstraction so that future features can consume the user’s location.
+
+For example, future components should eventually be able to ask for:
+
+current latitude
+current longitude
+accuracy
+location timestamp
+
+without directly interacting with browser geolocation APIs.
+
+Keep that logic inside a dedicated location service/hook.
+
+9. PRIVACY
+
+Do not send the user’s location to any external server in this step.
+
+Do not create a database.
+
+Do not permanently store the user’s location.
+
+For now, location should exist only for the current application session/state.
+
+The user should be able to revoke/disable location access through the browser/device settings.
+
+10. MOBILE EXPERIENCE
+
+Test the location permission flow on mobile-sized screens.
+
+The UI must remain:
+
+* clean
+* minimal
+* dark
+* premium
+* easy to understand
+
+Do not introduce unnecessary UI.
+
+11. DO NOT IMPLEMENT FUTURE FEATURES
+
+Do NOT implement:
+
+* anonymous letters
+* creating letters
+* dropping letters
+* nearby letter discovery
+* distance unlocking
+* replies
+* messaging
+* user accounts
+* profiles backed by a database
+* AR
+* camera permissions
+* REDLINE tracking
+* payments
+* subscriptions
+* push notifications
+
+Those will be separate development steps.
+
+12. DEVELOPMENT REQUIREMENTS
+
+After implementation:
+
+* Run the application.
+* Fix all build errors.
+* Fix obvious console errors.
+* Verify that navigation from STEP 1 still works.
+* Verify that the landing page still works.
+* Verify that DISCOVER, CAMERA, REDLINE and PROFILE still work.
+* Verify that location permission handling works correctly.
+* Do not break the existing UI.
+
+13. FINAL REPORT
+
+When finished, tell me:
+
+1. What you changed.
+2. Which files/components were added or modified.
+3. How the location system works.
+4. What happens when permission is denied.
+5. What I should manually test on my phone/iPad.
+6. Any known limitations.
+
+Then STOP.
+
+Do not proceed to STEP 3 automatically.

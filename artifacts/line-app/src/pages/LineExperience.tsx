@@ -4,6 +4,8 @@ import type { DiscoveryLetter } from '@/data/discovery';
 import { BottomNav, type AppView } from '@/components/line/BottomNav';
 import { DiscoveryField } from '@/components/line/DiscoveryField';
 import { LineMark } from '@/components/line/LineMark';
+import { LocationHeaderStatus, LocationPanel } from '@/components/line/LocationPanel';
+import { useLocation, type LocationState } from '@/hooks/useLocation';
 
 const profileRows = ['Privacy', 'Notifications', 'Location', 'Safety', 'Account'];
 
@@ -49,24 +51,25 @@ function OpeningScreen({ onEnter }: { onEnter: () => void }) {
   );
 }
 
-function DiscoverView() {
+function DiscoverView({ location }: { location: LocationState }) {
   const [selectedLetter, setSelectedLetter] = useState<DiscoveryLetter | null>(null);
 
   return (
     <div className="line-view line-discover-view">
       <header className="line-app-header">
         <LineMark compact />
-        <span className="line-header-status line-mono"><span className="line-status-dot" />LIVE PROTOTYPE</span>
+        <LocationHeaderStatus status={location.status} />
       </header>
       <div className="line-view-heading">
         <div>
           <span className="line-section-index line-mono">01 / DISCOVER</span>
           <h1 className="line-view-title line-serif">Find what’s<br /><em>left behind.</em></h1>
         </div>
-        <p className="line-view-caption">A soft map of the<br />signals around you.</p>
+        <p className="line-view-caption">Fictional signals —<br />not your location.</p>
       </div>
+      <LocationPanel location={location} />
       <DiscoveryField selectedLetter={selectedLetter} onSelect={setSelectedLetter} onDismiss={() => setSelectedLetter(null)} />
-      <div className="line-discover-footnote line-mono"><span>3 SIGNALS IN RANGE</span><span>FICTIONAL FIELD / 001</span></div>
+      <div className="line-discover-footnote line-mono"><span>3 MOCK SIGNALS</span><span>PREVIEW / NO LIVE LETTER DATA</span></div>
     </div>
   );
 }
@@ -173,20 +176,21 @@ function ProfileView() {
   );
 }
 
-function AppViewContent({ activeView }: { activeView: AppView }) {
+function AppViewContent({ activeView, location }: { activeView: AppView; location: LocationState }) {
   if (activeView === 'camera') return <CameraView />;
   if (activeView === 'redline') return <RedlineView />;
   if (activeView === 'profile') return <ProfileView />;
-  return <DiscoverView />;
+  return <DiscoverView location={location} />;
 }
 
 function AppShell() {
   const [activeView, setActiveView] = useState<AppView>('discover');
+  const location = useLocation();
 
   return (
     <main className="line-shell line-mobile-frame" data-testid="screen-app-shell">
       <div className="line-shell-content" key={activeView}>
-        <AppViewContent activeView={activeView} />
+        <AppViewContent activeView={activeView} location={location} />
       </div>
       <BottomNav activeView={activeView} onChange={setActiveView} />
     </main>

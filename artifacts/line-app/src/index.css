@@ -798,6 +798,24 @@ a:focus-visible {
   padding-top: 1px;
 }
 
+.line-location-header .line-status-dot {
+  transition: background-color 180ms ease;
+}
+
+.line-location-requesting .line-status-dot,
+.line-location-checking .line-status-dot {
+  animation: line-marker-pulse 1.8s ease-in-out infinite;
+}
+
+.line-location-denied .line-status-dot,
+.line-location-dismissed .line-status-dot,
+.line-location-unavailable .line-status-dot,
+.line-location-timeout .line-status-dot,
+.line-location-unsupported .line-status-dot,
+.line-location-error .line-status-dot {
+  background: var(--line-ash);
+}
+
 .line-header-status .line-status-dot {
   width: 4px;
   height: 4px;
@@ -840,6 +858,203 @@ a:focus-visible {
   font-size: 0.65rem;
   line-height: 1.5;
   text-align: right;
+}
+
+.line-location-panel {
+  position: relative;
+  margin: 0 0 13px;
+  border: 1px solid var(--line-rule);
+  background: rgba(232, 223, 209, 0.025);
+}
+
+.line-location-permission {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 14px;
+  padding: 17px 16px 16px;
+  background:
+    radial-gradient(circle at 0 100%, rgba(243, 92, 79, 0.09), transparent 46%),
+    rgba(232, 223, 209, 0.025);
+}
+
+.line-location-panel-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(243, 92, 79, 0.42);
+  border-radius: 50%;
+  color: var(--line-coral);
+}
+
+.line-location-panel-copy {
+  min-width: 0;
+}
+
+.line-location-panel .line-section-index {
+  margin-bottom: 10px;
+  font-size: 0.5rem;
+}
+
+.line-location-title,
+.line-location-error-title {
+  margin: 0;
+  color: var(--line-paper);
+  font-size: clamp(1.8rem, 8vw, 2.5rem);
+  font-weight: 400;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+}
+
+.line-location-panel p {
+  margin: 11px 0 0;
+  color: var(--line-ash);
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+.line-location-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-top: 16px;
+}
+
+.line-location-primary,
+.line-location-secondary,
+.line-location-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--line-paper);
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease, opacity 180ms ease;
+}
+
+.line-location-primary {
+  gap: 9px;
+  border-color: rgba(232, 223, 209, 0.34);
+  padding: 9px 12px;
+  font-size: 0.53rem;
+}
+
+.line-location-primary:hover {
+  border-color: var(--line-coral);
+  background: rgba(243, 92, 79, 0.1);
+}
+
+.line-location-primary:disabled,
+.line-location-secondary:disabled,
+.line-location-refresh:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.line-location-secondary {
+  padding: 7px 0;
+  color: var(--line-ash);
+  font-size: 0.52rem;
+}
+
+.line-location-secondary:hover {
+  color: var(--line-coral);
+}
+
+.line-location-active-panel,
+.line-location-muted-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 50px;
+  padding: 9px 11px 9px 13px;
+}
+
+.line-location-active-panel {
+  border-color: rgba(243, 92, 79, 0.24);
+  background: rgba(243, 92, 79, 0.04);
+}
+
+.line-location-active-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.line-location-live-mark {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid rgba(243, 92, 79, 0.38);
+  border-radius: 50%;
+}
+
+.line-location-live-mark .line-status-dot {
+  width: 5px;
+  height: 5px;
+}
+
+.line-location-kicker {
+  display: block;
+  color: var(--line-coral);
+  font-size: 0.5rem;
+}
+
+.line-location-accuracy {
+  display: block;
+  margin-top: 4px;
+  color: var(--line-ash);
+  font-size: 0.57rem;
+}
+
+.line-location-refresh {
+  flex: 0 0 auto;
+  gap: 7px;
+  padding: 7px 0 7px 7px;
+  color: var(--line-ash);
+  font-size: 0.49rem;
+}
+
+.line-location-refresh:hover {
+  color: var(--line-coral);
+}
+
+.line-refresh-spinning {
+  animation: line-refresh-spin 900ms linear infinite;
+}
+
+.line-location-muted-panel p {
+  margin-top: 5px;
+  font-size: 0.6rem;
+}
+
+.line-location-error-panel {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px;
+  background: rgba(232, 223, 209, 0.025);
+}
+
+.line-location-error-copy {
+  min-width: 0;
+}
+
+.line-location-error-title {
+  margin-top: 7px;
+  font-size: clamp(1.55rem, 7vw, 2.1rem);
+}
+
+.line-location-retry {
+  flex: 0 0 auto;
+}
+
+@keyframes line-refresh-spin {
+  to { transform: rotate(360deg); }
 }
 
 .line-discovery-field {

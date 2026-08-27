@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "LINE"
+description = "A mobile-first visual foundation for LINE, a mysterious social discovery experience connecting letters, places, and people in the real world."
+version = "1.0.0"
+id = "artifacts/line-app"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18923
+
+[services.development]
+run = "pnpm --filter @workspace/line-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/line-app", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/line-app/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18923"
+BASE_PATH = "/"

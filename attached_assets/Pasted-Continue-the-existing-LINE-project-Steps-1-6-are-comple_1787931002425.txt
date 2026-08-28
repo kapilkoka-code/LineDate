@@ -1,0 +1,127 @@
+Continue the existing LINE project. Steps 1–6 are complete and validated. Do not rebuild or break existing functionality.
+
+STEP 7 — REPLY INBOX
+
+Build the writer-side experience for receiving replies to their letters.
+
+For now, everything remains localStorage-only. Do not add a backend or real-time synchronization.
+
+1. MY LETTERS
+
+Inside:
+
+PROFILE → MY LETTERS
+
+Each letter should now indicate whether it has replies.
+
+Example:
+
+ANONYMOUS LETTER
+
+“Someone replied”
+
+or:
+
+“No replies yet”
+
+Do not expose reply content directly on the letter card.
+
+2. VIEW REPLIES
+
+When the user opens one of their own letters, add:
+
+VIEW REPLIES
+
+Show a dedicated replies screen.
+
+Each reply should display:
+
+* reply text
+* date/time
+* temporary sender ID (LINE-XXXXXX)
+* reply status
+
+Do not reveal the sender’s real identity because authentication does not exist yet.
+
+3. IMPORTANT PRODUCT RULE
+
+The original letter writer should NOT automatically receive/read the reply remotely.
+
+For now, create the reply inbox UI and data flow only.
+
+Clearly label the experience as local prototype behavior where necessary.
+
+The future system will introduce the rule:
+
+Return to the physical letter location to access replies, unless premium remote access is enabled.
+
+Do not implement that rule yet.
+
+4. REPLY DATA
+
+Use the existing LetterReply structure and localStorage service from Step 6.
+
+Match replies to letters using:
+
+letterId
+
+Only show replies belonging to the current user’s locally created letters.
+
+Never show another user’s replies as part of My Letters.
+
+5. EMPTY STATE
+
+If a letter has no replies:
+
+NO REPLIES YET
+
+“Maybe someone hasn’t found your letter.”
+
+6. UI
+
+Keep the LINE aesthetic:
+
+* dark
+* cinematic
+* intimate
+* minimal
+* premium
+
+Replies should visually feel like another person has written back to your letter.
+
+DO NOT IMPLEMENT YET
+
+Do NOT build:
+
+* remote reply access
+* physical reply-location restriction
+* premium access
+* identity reveal
+* real user accounts
+* authentication
+* backend/database
+* real-time synchronization
+* notifications
+* AR/camera
+* REDLINE
+* payments
+
+TEST
+
+Verify:
+
+1. A reply appears under the correct letter.
+2. Replies are only visible to the letter owner.
+3. Reply text is preserved.
+4. Sender ID is displayed as LINE-XXXXXX.
+5. Letters without replies show the correct empty state.
+6. Multiple replies to one letter display correctly.
+7. Replies to different letters remain separated.
+8. Existing proximity protection still works.
+9. Existing composer and Back behavior still works.
+10. localStorage persistence survives reload.
+11. TypeScript typecheck passes.
+12. Production build passes.
+13. Mobile flow and console logs are clean.
+
+After completing Step 7, STOP. Do not implement Step 8.

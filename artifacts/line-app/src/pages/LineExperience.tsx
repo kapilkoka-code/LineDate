@@ -8,6 +8,7 @@ import { LocationHeaderStatus, LocationPanel } from '@/components/line/LocationP
 import { useLocation, type LocationState } from '@/hooks/useLocation';
 import { getNearbyLetters, type NearbyLetter } from '@/services/discovery';
 import { loadLetters, type Letter } from '@/services/letters';
+import { loadReplies, type LetterReply } from '@/services/replies';
 
 const profileRows = ['Privacy', 'Notifications', 'Location', 'Safety', 'Account'];
 
@@ -177,7 +178,79 @@ function RedlineView() {
   );
 }
 
-function MyLetters({ letters }: { letters: Letter[] }) {
+function formatReplyDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? 'TIME UNKNOWN'
+    : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function RepliesView({
+  letter,
+  replies,
+  onBack,
+}: {
+  letter: Letter;
+  replies: LetterReply[];
+  onBack: () => void;
+}) {
+  return (
+    <div className="line-replies-view line-view-enter" data-testid="screen-letter-replies">
+      <div className="line-replies-heading">
+        <button type="button" className="line-replies-back line-mono" onClick={onBack} data-testid="button-back-to-my-letters">
+          <ChevronRight size={14} strokeWidth={1.4} />
+          My letters
+        </button>
+        <span className="line-section-index line-mono">INBOX / LOCAL PROTOTYPE</span>
+        <h1 className="line-replies-title line-serif">What came<br /><em>back.</em></h1>
+        <p>Replies to this letter stay here for now.</p>
+      </div>
+
+      <div className="line-replies-source">
+        <span className="line-mono">YOUR LETTER</span>
+        <p>{letter.text}</p>
+      </div>
+
+      {replies.length === 0 ? (
+        <div className="line-replies-empty" data-testid="state-no-replies">
+          <span className="line-mono">NO REPLIES YET</span>
+          <p>Maybe someone hasn’t found your letter.</p>
+        </div>
+      ) : (
+        <div className="line-replies-list" aria-label="Replies to this letter" data-testid="list-letter-replies">
+          {replies.map((reply) => (
+            <article className="line-reply-inbox-card" key={reply.id} data-testid={`card-letter-reply-${reply.id}`}>
+              <div className="line-reply-inbox-topline line-mono">
+                <span>REPLY / {reply.status.toUpperCase()}</span>
+                <span>{formatReplyDate(reply.createdAt)}</span>
+              </div>
+              <p>{reply.text}</p>
+              <div className="line-reply-inbox-meta line-mono">
+                <span>FROM TEMPORARY ID</span>
+                <strong>{reply.senderId}</strong>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      <div className="line-replies-local-note">
+        <ShieldCheck size={15} strokeWidth={1.3} />
+        <span className="line-mono">LOCAL ONLY / REMOTE DELIVERY IS NOT ENABLED</span>
+      </div>
+    </div>
+  );
+}
+
+function MyLetters({
+  letters,
+  replies,
+  onSelectLetter,
+}: {
+  letters: Letter[];
+  replies: LetterReply[];
+  onSelectLetter: (letter: Letter) => void;
+}) {
   if (letters.length === 0) {
     return (
       <div className="line-my-letters-empty line-view-enter" data-testid="panel-my-letters-empty">
@@ -191,17 +264,27 @@ function MyLetters({ letters }: { letters: Letter[] }) {
   return (
     <div className="line-my-letters-grid line-view-enter" aria-label="Letters you have left" data-testid="panel-my-letters">
       {letters.map((letter) => (
-        <article className="line-my-letter-card" key={letter.id} data-testid={`card-my-letter-${letter.id}`}>
+        <button
+          type="button"
+          className="line-my-letter-card"
+          key={letter.id}
+          onClick={() => onSelectLetter(letter)}
+          data-testid={`card-my-letter-${letter.id}`}
+        >
           <div className="line-my-letter-card-topline line-mono">
             <span>ANONYMOUS</span>
-            <span>DROPPED</span>
+            <span>{replies.filter((reply) => reply.letterId === letter.id).length > 0 ? 'SOMEONE REPLIED' : 'NO REPLIES YET'}</span>
           </div>
           <p>{letter.text}</p>
           <div className="line-my-letter-meta line-mono">
-            <span>{new Date(letter.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+            <span>{formatReplyDate(letter.createdAt)}</span>
             <span>LOCATION ACTIVE / ~{Math.max(1, Math.round(letter.accuracy))}m</span>
           </div>
-        </article>
+          <span className="line-my-letter-action line-mono">
+            {replies.some((reply) => reply.letterId === letter.id) ? 'VIEW REPLIES' : 'OPEN LETTER'}
+            <ChevronRight size={13} strokeWidth={1.4} />
+          </span>
+        </button>
       ))}
     </div>
   );
@@ -211,12 +294,17 @@ function ProfileView() {
   const [activeRow, setActiveRow] = useState<string | null>(null);
   const [showMyLetters, setShowMyLetters] = useState(false);
   const [letters, setLetters] = useState<Letter[]>([]);
+  const [replies, setReplies] = useState<LetterReply[]>([]);
+  const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
 
   useEffect(() => {
     if (showMyLetters) {
       setLetters(loadLetters().filter((letter) => letter.isOwn !== false));
+      setReplies(loadReplies());
     }
   }, [showMyLetters]);
+
+  const selectedLetter = letters.find((letter) => letter.id === selectedLetterId) ?? null;
 
   return (
     <div className="line-view line-profile-view">
@@ -224,45 +312,55 @@ function ProfileView() {
         <LineMark compact />
         <span className="line-header-index line-mono">04 / PRIVATE</span>
       </header>
-      <div className="line-profile-intro">
-        <span className="line-section-index line-mono">YOUR PROFILE</span>
-        <h1 className="line-profile-title line-serif">Anonymous<br /><em>User</em></h1>
-        <div className="line-private-note"><ShieldCheck size={15} strokeWidth={1.4} /><span>Your identity is private.</span></div>
-      </div>
-      <button
-        type="button"
-        className={`line-my-letters-trigger ${showMyLetters ? 'line-my-letters-trigger-active' : ''}`}
-        onClick={() => setShowMyLetters((open) => !open)}
-        aria-expanded={showMyLetters}
-        data-testid="button-my-letters"
-      >
-        <span className="line-my-letters-trigger-copy">
-          <span className="line-mono">YOUR SIGNALS</span>
-          <strong>My letters</strong>
-        </span>
-        <FileText size={17} strokeWidth={1.3} />
-      </button>
-      {showMyLetters && <MyLetters letters={letters} />}
-      <div className="line-profile-list" aria-label="Profile settings">
-        {profileRows.map((row, index) => (
+      {selectedLetter ? (
+        <RepliesView
+          letter={selectedLetter}
+          replies={replies.filter((reply) => reply.letterId === selectedLetter.id)}
+          onBack={() => setSelectedLetterId(null)}
+        />
+      ) : (
+        <>
+          <div className="line-profile-intro">
+            <span className="line-section-index line-mono">YOUR PROFILE</span>
+            <h1 className="line-profile-title line-serif">Anonymous<br /><em>User</em></h1>
+            <div className="line-private-note"><ShieldCheck size={15} strokeWidth={1.4} /><span>Your identity is private.</span></div>
+          </div>
           <button
             type="button"
-            key={row}
-            className={`line-profile-row ${activeRow === row ? 'line-profile-row-active' : ''}`}
-            onClick={() => setActiveRow(activeRow === row ? null : row)}
-            data-testid={`button-profile-${row.toLowerCase()}`}
+            className={`line-my-letters-trigger ${showMyLetters ? 'line-my-letters-trigger-active' : ''}`}
+            onClick={() => setShowMyLetters((open) => !open)}
+            aria-expanded={showMyLetters}
+            data-testid="button-my-letters"
           >
-            <span className="line-profile-row-number line-mono">0{index + 1}</span>
-            <span>{row}</span>
-            <ChevronRight size={16} strokeWidth={1.4} />
+            <span className="line-my-letters-trigger-copy">
+              <span className="line-mono">YOUR SIGNALS</span>
+              <strong>My letters</strong>
+            </span>
+            <FileText size={17} strokeWidth={1.3} />
           </button>
-        ))}
-      </div>
-      {activeRow && (
-        <div className="line-profile-placeholder line-view-enter" data-testid="text-profile-placeholder">
-          <span className="line-mono">PLACEHOLDER / {activeRow.toUpperCase()}</span>
-          <p>This setting will be available in a future step.</p>
-        </div>
+          {showMyLetters && <MyLetters letters={letters} replies={replies} onSelectLetter={(letter) => setSelectedLetterId(letter.id)} />}
+          <div className="line-profile-list" aria-label="Profile settings">
+            {profileRows.map((row, index) => (
+              <button
+                type="button"
+                key={row}
+                className={`line-profile-row ${activeRow === row ? 'line-profile-row-active' : ''}`}
+                onClick={() => setActiveRow(activeRow === row ? null : row)}
+                data-testid={`button-profile-${row.toLowerCase()}`}
+              >
+                <span className="line-profile-row-number line-mono">0{index + 1}</span>
+                <span>{row}</span>
+                <ChevronRight size={16} strokeWidth={1.4} />
+              </button>
+            ))}
+          </div>
+          {activeRow && (
+            <div className="line-profile-placeholder line-view-enter" data-testid="text-profile-placeholder">
+              <span className="line-mono">PLACEHOLDER / {activeRow.toUpperCase()}</span>
+              <p>This setting will be available in a future step.</p>
+            </div>
+          )}
+        </>
       )}
       <div className="line-profile-footer line-mono">PRIVATE BY DEFAULT / ALWAYS</div>
     </div>

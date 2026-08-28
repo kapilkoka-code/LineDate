@@ -1,0 +1,132 @@
+Continue the existing LINE project. Steps 1–3 are complete and validated. Do not rebuild or break existing functionality.
+
+STEP 4 — NEARBY LETTER DISCOVERY
+
+Now build the first version of LINE’s location-based discovery system.
+
+Objective
+
+Users should be able to see letters that exist near their current location and see how far away they are.
+
+For now, use the existing localStorage letters. We are still building a single-device prototype, so do not add a backend or multi-user synchronization yet.
+
+Build
+
+1. DISCOVER
+Replace the previous mock-only discovery experience with a real nearby-letter calculation using:
+
+* user’s current latitude/longitude from Step 2
+* letters stored in localStorage from Step 3
+
+Calculate the distance between the user and each letter using a proper geographic distance calculation such as the Haversine formula.
+
+2. DISTANCE
+Display each nearby letter with an approximate distance:
+
+* 5m
+* 12m
+* 48m
+* etc.
+
+Round sensibly for readability.
+
+Do not expose coordinates.
+
+3. DISCOVERY RANGE
+For the prototype, only show letters within 100 metres.
+
+Keep the range as a configurable constant so it can easily be changed later.
+
+4. LETTER MARKERS
+Create a clean visual discovery interface showing nearby anonymous-letter markers.
+
+Each marker should display:
+
+ANONYMOUS LETTER
+
+and its distance.
+
+Do not open the letter yet.
+
+Tapping a marker should show a preview card containing:
+
+* Anonymous Letter
+* Distance
+* “Move closer to discover.”
+
+5. IMPORTANT — NO UNLOCKING YET
+
+Do NOT allow users to read the actual letter based on proximity yet.
+
+Step 4 is only about:
+
+LOCATION → DISTANCE → DISCOVERY
+
+The actual 5–10 metre unlock mechanism will be built in the next step.
+
+6. USER’S OWN LETTERS
+
+Do not show the user’s own letters as discoverable nearby letters.
+
+They should remain accessible through:
+
+PROFILE → MY LETTERS
+
+7. LOCATION STATES
+
+Handle:
+
+* location unavailable
+* permission denied
+* GPS loading
+* no letters nearby
+
+For no results, show something atmospheric such as:
+
+NOTHING HERE
+
+“Maybe someone will leave something behind.”
+
+Keep the existing LINE visual style.
+
+8. REFRESH
+
+Add a subtle refresh/recenter action that updates the user’s current location and recalculates nearby letters.
+
+Do not continuously poll GPS.
+
+IMPORTANT
+
+Do NOT implement:
+
+* backend/database
+* authentication
+* multi-user synchronization
+* letter replies
+* identity reveal
+* AR/camera
+* REDLINE
+* payments
+* notifications
+* 5–10m unlocking
+
+Those come later.
+
+TEST
+
+Verify:
+
+1. Create a letter using Step 3.
+2. Its coordinates are saved.
+3. DISCOVER calculates its distance from the current location.
+4. Letters farther than 100m are hidden.
+5. The user’s own letters are excluded.
+6. Distance updates after location refresh.
+7. No raw coordinates are displayed.
+8. Existing composer/draft/back-button behavior still works.
+9. Profile → My Letters still works.
+10. TypeScript typecheck passes.
+11. Production build passes.
+12. Mobile browser flow and console logs are clean.
+
+After completing Step 4, STOP. Do not implement Step 5.

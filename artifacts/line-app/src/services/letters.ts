@@ -8,6 +8,7 @@ export type Letter = {
   latitude: number;
   longitude: number;
   accuracy: number;
+  isOwn?: boolean;
   visibility: LetterVisibility;
   anonymous: true;
   status: LetterStatus;
@@ -26,6 +27,7 @@ function isLetter(value: unknown): value is Letter {
     typeof candidate.latitude === 'number' &&
     typeof candidate.longitude === 'number' &&
     typeof candidate.accuracy === 'number' &&
+    (candidate.isOwn === undefined || typeof candidate.isOwn === 'boolean') &&
     candidate.visibility === 'nearby' &&
     candidate.anonymous === true &&
     candidate.status === 'dropped'
@@ -40,7 +42,9 @@ export function loadLetters(): Letter[] {
     if (!stored) return [];
 
     const parsed: unknown = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed.filter(isLetter) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter(isLetter).map((letter) => ({ ...letter, isOwn: letter.isOwn ?? true }))
+      : [];
   } catch {
     return [];
   }
@@ -51,7 +55,7 @@ export function saveLetter(letter: Letter): void {
     throw new Error('Letter storage is not available.');
   }
 
-  const nextLetters = [letter, ...loadLetters()];
+  const nextLetters = [{ ...letter, isOwn: true }, ...loadLetters()];
   window.localStorage.setItem(LETTERS_STORAGE_KEY, JSON.stringify(nextLetters));
 }
 

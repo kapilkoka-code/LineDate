@@ -1,12 +1,12 @@
 import { ArrowUpRight, ChevronRight, FileText, LockKeyhole, PenLine, ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { DiscoveryLetter } from '@/data/discovery';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BottomNav, type AppView } from '@/components/line/BottomNav';
 import { DiscoveryField } from '@/components/line/DiscoveryField';
 import { LineMark } from '@/components/line/LineMark';
 import { LetterComposer } from '@/components/line/LetterComposer';
 import { LocationHeaderStatus, LocationPanel } from '@/components/line/LocationPanel';
 import { useLocation, type LocationState } from '@/hooks/useLocation';
+import { getNearbyLetters, type NearbyLetter } from '@/services/discovery';
 import { loadLetters, type Letter } from '@/services/letters';
 
 const profileRows = ['Privacy', 'Notifications', 'Location', 'Safety', 'Account'];
@@ -54,7 +54,18 @@ function OpeningScreen({ onEnter }: { onEnter: () => void }) {
 }
 
 function DiscoverView({ location, onDropLetter }: { location: LocationState; onDropLetter: () => void }) {
-  const [selectedLetter, setSelectedLetter] = useState<DiscoveryLetter | null>(null);
+  const [selectedLetter, setSelectedLetter] = useState<NearbyLetter | null>(null);
+  const [storedLetters, setStoredLetters] = useState<Letter[]>([]);
+
+  useEffect(() => {
+    setStoredLetters(loadLetters());
+  }, [location.location]);
+
+  const nearbyLetters = useMemo(
+    () => getNearbyLetters(location.location, storedLetters),
+    [location.location, storedLetters],
+  );
+  const locationReady = location.status === 'active' && location.location !== null;
 
   return (
     <div className="line-view line-discover-view">
@@ -77,8 +88,20 @@ function DiscoverView({ location, onDropLetter }: { location: LocationState; onD
         </span>
         <PenLine size={17} strokeWidth={1.3} />
       </button>
-      <DiscoveryField selectedLetter={selectedLetter} onSelect={setSelectedLetter} onDismiss={() => setSelectedLetter(null)} />
-      <div className="line-discover-footnote line-mono"><span>3 MOCK SIGNALS</span><span>PREVIEW / NO LIVE LETTER DATA</span></div>
+      <DiscoveryField
+        letters={nearbyLetters}
+        selectedLetter={selectedLetter}
+        locationStatus={location.status}
+        locationReady={locationReady}
+        loading={location.loading}
+        onRefresh={location.requestLocation}
+        onSelect={setSelectedLetter}
+        onDismiss={() => setSelectedLetter(null)}
+      />
+      <div className="line-discover-footnote line-mono">
+        <span>{locationReady ? `${nearbyLetters.length} SIGNAL${nearbyLetters.length === 1 ? '' : 'S'} WITHIN 100M` : 'DISCOVERY STANDBY'}</span>
+        <span>ANONYMOUS / COORDINATES HIDDEN</span>
+      </div>
     </div>
   );
 }
@@ -181,7 +204,9 @@ function ProfileView() {
   const [letters, setLetters] = useState<Letter[]>([]);
 
   useEffect(() => {
-    if (showMyLetters) setLetters(loadLetters());
+    if (showMyLetters) {
+      setLetters(loadLetters().filter((letter) => letter.isOwn !== false));
+    }
   }, [showMyLetters]);
 
   return (

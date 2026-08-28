@@ -154,6 +154,7 @@ export function LetterComposer({ location, onClose }: LetterComposerProps) {
       latitude: location.location.latitude,
       longitude: location.location.longitude,
       accuracy: location.location.accuracy,
+      isOwn: true,
       visibility: 'nearby',
       anonymous: true,
       status: 'dropped',

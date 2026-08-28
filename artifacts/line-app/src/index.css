@@ -1754,6 +1754,67 @@ a:focus-visible {
   font-size: 0.67rem;
 }
 
+.line-discovery-field-empty {
+  background:
+    radial-gradient(circle at 50% 55%, rgba(243, 92, 79, 0.04), transparent 35%),
+    #1b1917;
+}
+
+.line-field-refresh {
+  position: absolute;
+  top: 11px;
+  right: 12px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(232, 223, 209, 0.2);
+  background: rgba(28, 25, 23, 0.55);
+  padding: 7px 8px;
+  color: var(--line-ash);
+  font-size: 0.47rem;
+  transition: border-color 180ms ease, color 180ms ease;
+}
+
+.line-field-refresh:hover:not(:disabled) {
+  border-color: rgba(243, 92, 79, 0.55);
+  color: var(--line-paper);
+}
+
+.line-field-refresh:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.line-field-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: min(250px, calc(100% - 38px));
+  text-align: center;
+  transform: translate(-50%, -50%) rotate(-3deg);
+}
+
+.line-field-empty-kicker {
+  color: var(--line-coral);
+  font-size: 0.49rem;
+}
+
+.line-field-empty-title {
+  margin-top: 14px;
+  color: rgba(232, 223, 209, 0.7);
+  font-size: 2.45rem;
+  line-height: 0.82;
+}
+
+.line-field-empty p {
+  margin: 14px 0 0;
+  color: var(--line-ash);
+  font-size: 0.64rem;
+  line-height: 1.4;
+}
+
 .line-discovery-field {
   position: relative;
   height: min(60vh, 420px);
@@ -1869,8 +1930,18 @@ a:focus-visible {
 }
 
 .line-marker-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
   font-size: 0.54rem;
   white-space: nowrap;
+}
+
+.line-marker-letter-label {
+  color: var(--line-ash);
+  font-size: 0.42rem;
+  letter-spacing: 0.08em;
 }
 
 .line-letter-card {

@@ -447,18 +447,35 @@ components:
             createdAt: { type: string, format: date-time }
     LocalMigrationRequest:
       type: object
-      required: [localUserId, displayName, letters]
+      required: [localUserId, displayName, location, letters, replies]
       properties:
         localUserId: { type: string, maxLength: 64 }
         displayName: { type: string, minLength: 1, maxLength: 40 }
+        location:
+          $ref: "#/components/schemas/LocationRequest"
         letters:
           type: array
           maxItems: 100
           items: { $ref: "#/components/schemas/LocalLetterMigration" }
+        replies:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/LocalReplyMigration" }
+    LocalReplyMigration:
+      type: object
+      required: [id, letterId, text, createdAt, status]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 128 }
+        letterId: { type: string, minLength: 1, maxLength: 128 }
+        text: { type: string, minLength: 1, maxLength: 500 }
+        createdAt: { type: string, format: date-time }
+        status: { type: string, enum: [sent] }
     LocalMigrationResult:
       type: object
-      required: [migratedLetters, skippedLetters, linkedLocalUserId]
+      required: [migratedLetters, skippedLetters, migratedReplies, skippedReplies, linkedLocalUserId]
       properties:
         migratedLetters: { type: integer, minimum: 0 }
         skippedLetters: { type: integer, minimum: 0 }
+        migratedReplies: { type: integer, minimum: 0 }
+        skippedReplies: { type: integer, minimum: 0 }
         linkedLocalUserId: { type: string }

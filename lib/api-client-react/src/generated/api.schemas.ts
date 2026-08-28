@@ -220,6 +220,33 @@ export type LocalLetterMigration = CreateLetterRequest & {
   createdAt: string;
 };
 
+export type LocalReplyMigrationStatus = typeof LocalReplyMigrationStatus[keyof typeof LocalReplyMigrationStatus];
+
+
+export const LocalReplyMigrationStatus = {
+  sent: 'sent',
+} as const;
+
+export interface LocalReplyMigration {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  letterId: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  text: string;
+  createdAt: string;
+  status: LocalReplyMigrationStatus;
+}
+
 export interface LocalMigrationRequest {
   /** @maxLength 64 */
   localUserId: string;
@@ -228,8 +255,11 @@ export interface LocalMigrationRequest {
      * @maxLength 40
      */
   displayName: string;
+  location: LocationRequest;
   /** @maxItems 100 */
   letters: LocalLetterMigration[];
+  /** @maxItems 100 */
+  replies: LocalReplyMigration[];
 }
 
 export interface LocalMigrationResult {
@@ -237,6 +267,10 @@ export interface LocalMigrationResult {
   migratedLetters: number;
   /** @minimum 0 */
   skippedLetters: number;
+  /** @minimum 0 */
+  migratedReplies: number;
+  /** @minimum 0 */
+  skippedReplies: number;
   linkedLocalUserId: string;
 }
 

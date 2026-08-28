@@ -416,10 +416,50 @@ router.post("/migration/local", async (req, res) => {
       .returning({ id: lettersTable.id });
     if (inserted) migratedLetters += 1;
   }
+  let migratedReplies = 0;
+  for (const source of body.data.replies) {
+    const [letter] = await db
+      .select()
+      .from(lettersTable)
+      .where(eq(lettersTable.id, source.letterId));
+    if (
+      !letter ||
+      letter.writerId === userId ||
+      distanceMeters(
+        body.data.location.latitude,
+        body.data.location.longitude,
+        letter.latitude,
+        letter.longitude,
+      ) > UNLOCK_DISTANCE_METERS
+    ) {
+      continue;
+    }
+    const [inserted] = await db
+      .insert(repliesTable)
+      .values({
+        id: source.id,
+        letterId: letter.id,
+        senderUserId: userId,
+        letterWriterId: letter.writerId,
+        text: source.text.trim(),
+        createdAt: source.createdAt,
+        status: "sent",
+      })
+      .onConflictDoNothing()
+      .returning({ id: repliesTable.id });
+    if (!inserted) continue;
+    migratedReplies += 1;
+    await db
+      .insert(identityRelationshipsTable)
+      .values({ letterId: letter.id, senderUserId: userId })
+      .onConflictDoNothing();
+  }
   res.json(
     MigrateLocalLineDataResponse.parse({
       migratedLetters,
       skippedLetters: body.data.letters.length - migratedLetters,
+      migratedReplies,
+      skippedReplies: body.data.replies.length - migratedReplies,
       linkedLocalUserId: body.data.localUserId,
     }),
   );

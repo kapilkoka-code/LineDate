@@ -19,7 +19,7 @@ import {
   type LocalUser,
 } from '@/services/identity';
 import { loadLetters, type Letter } from '@/services/letters';
-import { type LetterReply } from '@/services/replies';
+import { loadReplies, type LetterReply } from '@/services/replies';
 import { api } from '@/services/api';
 
 const profileRows = ['Privacy', 'Notifications', 'Location', 'Safety', 'Account'];
@@ -688,6 +688,40 @@ function AppShell() {
   const historyEntryRef = useRef(false);
   const closingComposerRef = useRef(false);
 
+  useEffect(() => {
+    if (!location.location || typeof window === 'undefined') return;
+    const completedKey = 'line:legacy-migration-v2-complete';
+    if (window.localStorage.getItem(completedKey)) return;
+    try {
+      const user = getOrCreateLocalUser();
+      const letters = loadLetters().filter((letter) => letter.isOwn !== false).slice(0, 100);
+      const replies = loadReplies()
+        .filter((reply) => reply.senderUserId === user.id || reply.senderId === user.id)
+        .slice(0, 100);
+      void api.migrate({
+        localUserId: user.id,
+        displayName: user.displayName,
+        location: {
+          latitude: location.location.latitude,
+          longitude: location.location.longitude,
+          accuracy: location.location.accuracy,
+        },
+        letters: letters.map(({ id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status }) => ({
+          id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status,
+        })),
+        replies: replies.map(({ id, letterId, text, createdAt, status }) => ({
+          id, letterId, text, createdAt, status,
+        })),
+      }).then((result) => {
+        if (result.skippedReplies === 0) {
+          window.localStorage.setItem(completedKey, 'true');
+        }
+      }).catch(() => undefined);
+    } catch {
+      // Leave the migration pending; local records are never deleted here.
+    }
+  }, [location.location]);
+
   const closeComposer = useCallback(() => {
     if (!composerOpenRef.current) return;
 
@@ -750,33 +784,6 @@ function AppShell() {
 
 export default function LineExperience() {
   const { isLoading, isAuthenticated, login } = useAuth();
-
-  useEffect(() => {
-    if (!isAuthenticated || typeof window === 'undefined') return;
-    const completedKey = 'line:legacy-migration-complete';
-    if (window.localStorage.getItem(completedKey)) return;
-    try {
-      const user = getOrCreateLocalUser();
-      const letters = loadLetters().filter((letter) => letter.isOwn !== false).slice(0, 100);
-      if (letters.length === 0) {
-        window.localStorage.setItem(completedKey, 'true');
-        return;
-      }
-      void api.migrate({
-        localUserId: user.id,
-        displayName: user.displayName,
-        letters: letters.map(({ id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status }) => ({
-          id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status,
-        })),
-      }).then(() => {
-        // Do not delete local data: completion is recorded only after the
-        // server has accepted it, allowing a safe retry on any failure.
-        window.localStorage.setItem(completedKey, 'true');
-      }).catch(() => undefined);
-    } catch {
-      // Storage may be unavailable; leave migration pending rather than lose it.
-    }
-  }, [isAuthenticated]);
 
   return (
     <div className="line-app">

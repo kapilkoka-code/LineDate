@@ -35,5 +35,5 @@ export const api = {
   createReply: (id: string, data: LocationPayload & { id: string; text: string; status: 'sent' }) => request<SentReply>(`/letters/${encodeURIComponent(id)}/replies`, { method: 'POST', body: JSON.stringify(data) }),
   myReplies: (location?: Pick<LocationPayload, 'latitude' | 'longitude'>) => request<SentReply[]>(`/replies/mine${location ? query(location) : ''}`),
   reveal: (letterId: string, senderUserId: string, location: LocationPayload) => request<{ letterId: string; senderUserId: string; identityRevealed: boolean }>(`/letters/${encodeURIComponent(letterId)}/relationships/${encodeURIComponent(senderUserId)}/reveal`, { method: 'POST', body: JSON.stringify(location) }),
-  migrate: (data: unknown) => request<{ migratedLetters: number; skippedLetters: number; linkedLocalUserId: string }>('/migration/local', { method: 'POST', body: JSON.stringify(data) }),
+  migrate: (data: unknown) => request<{ migratedLetters: number; skippedLetters: number; migratedReplies: number; skippedReplies: number; linkedLocalUserId: string }>('/migration/local', { method: 'POST', body: JSON.stringify(data) }),
 };

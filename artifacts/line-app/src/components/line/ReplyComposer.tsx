@@ -2,8 +2,6 @@ import { ArrowLeft, Check, FilePenLine, LocateFixed, RefreshCw, ShieldAlert, X }
 import { useState } from 'react';
 import type { LocationData } from '@/hooks/useLocation';
 import {
-  distanceBetweenLocations,
-  isLetterWithinUnlockRange,
   UNLOCK_DISTANCE_METERS,
   type NearbyLetter,
 } from '@/services/discovery';
@@ -40,10 +38,8 @@ export function ReplyComposer({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const distance = currentLocation
-    ? distanceBetweenLocations(currentLocation, letter.letter)
-    : null;
-  const isUnlocked = isLetterWithinUnlockRange(currentLocation, letter.letter);
+  const distance = currentLocation ? letter.distanceMeters : null;
+  const isUnlocked = letter.isUnlocked;
   const isInaccurate = locationAccuracy !== null && locationAccuracy > UNLOCK_DISTANCE_METERS;
   const trimmedText = text.trim();
 

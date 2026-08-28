@@ -31,7 +31,7 @@ import {
   repliesTable,
   usersTable,
 } from "@workspace/db";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lte, ne, or, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
 
 const DISCOVERY_RANGE_METERS = 100;
@@ -73,6 +73,24 @@ function letterResponse(letter: typeof lettersTable.$inferSelect, isOwn: boolean
     anonymous: true as const,
     status: "dropped" as const,
     isOwn,
+  };
+}
+
+function nearbyLetterResponse(
+  letter: typeof lettersTable.$inferSelect,
+  distance: number,
+  isOwn = false,
+) {
+  return {
+    id: letter.id,
+    text: isOwn || distance <= UNLOCK_DISTANCE_METERS ? letter.text : null,
+    createdAt: letter.createdAt,
+    visibility: "nearby" as const,
+    anonymous: true as const,
+    status: "dropped" as const,
+    isOwn,
+    isUnlocked: isOwn || distance <= UNLOCK_DISTANCE_METERS,
+    distanceMeters: distance,
   };
 }
 
@@ -133,12 +151,40 @@ router.get("/letters/nearby", async (req, res) => {
   const parsed = GetNearbyLineLettersQueryParams.safeParse(req.query);
   if (!parsed.success) return invalid(res, "A valid location is required");
   const radius = Math.min(parsed.data.radius ?? DISCOVERY_RANGE_METERS, DISCOVERY_RANGE_METERS);
+  const latitudeDelta = radius / 111_320;
+  const cosine = Math.cos((parsed.data.latitude * Math.PI) / 180);
+  const longitudeDelta = Math.abs(cosine) < 0.000001
+    ? 180
+    : Math.min(180, radius / (111_320 * Math.abs(cosine)));
+  const minLongitude = parsed.data.longitude - longitudeDelta;
+  const maxLongitude = parsed.data.longitude + longitudeDelta;
+  const longitudeBounds = longitudeDelta === 180
+    ? undefined
+    : minLongitude < -180
+      ? or(
+          gte(lettersTable.longitude, minLongitude + 360),
+          lte(lettersTable.longitude, maxLongitude),
+        )
+      : maxLongitude > 180
+        ? or(
+            gte(lettersTable.longitude, minLongitude),
+            lte(lettersTable.longitude, maxLongitude - 360),
+          )
+        : and(
+            gte(lettersTable.longitude, minLongitude),
+            lte(lettersTable.longitude, maxLongitude),
+          );
   const letters = await db
     .select()
     .from(lettersTable)
-    .where(and(eq(lettersTable.visibility, "nearby"), ne(lettersTable.writerId, userId)))
-    .orderBy(desc(lettersTable.createdAt))
-    .limit(500);
+    .where(and(
+      eq(lettersTable.visibility, "nearby"),
+      ne(lettersTable.writerId, userId),
+      gte(lettersTable.latitude, Math.max(-90, parsed.data.latitude - latitudeDelta)),
+      lte(lettersTable.latitude, Math.min(90, parsed.data.latitude + latitudeDelta)),
+      longitudeBounds,
+    ))
+    .orderBy(desc(lettersTable.createdAt));
   const nearby = letters.flatMap((letter) => {
     const distance = distanceMeters(
       parsed.data.latitude,
@@ -149,9 +195,7 @@ router.get("/letters/nearby", async (req, res) => {
     if (distance > radius) return [];
     return [
       {
-        ...letterResponse(letter, false),
-        text: distance <= UNLOCK_DISTANCE_METERS ? letter.text : null,
-        isUnlocked: distance <= UNLOCK_DISTANCE_METERS,
+        ...nearbyLetterResponse(letter, distance),
       },
     ];
   });
@@ -187,12 +231,15 @@ router.get("/letters/:letterId", async (req, res) => {
   const [letter] = await db.select().from(lettersTable).where(eq(lettersTable.id, params.data.letterId));
   if (!letter) return res.status(404).json({ error: "Letter not found" });
   const isOwn = letter.writerId === userId;
-  const unlocked =
-    isOwn ||
-    distanceMeters(query.data.latitude, query.data.longitude, letter.latitude, letter.longitude) <=
-      UNLOCK_DISTANCE_METERS;
+  const distance = distanceMeters(
+    query.data.latitude,
+    query.data.longitude,
+    letter.latitude,
+    letter.longitude,
+  );
+  const unlocked = isOwn || distance <= UNLOCK_DISTANCE_METERS;
   if (!unlocked) return res.status(403).json({ error: "Move within 10m to open this letter" });
-  res.json(GetLineLetterResponse.parse({ ...letterResponse(letter, isOwn), isUnlocked: true }));
+  res.json(GetLineLetterResponse.parse(nearbyLetterResponse(letter, distance, isOwn)));
 });
 
 router.post("/letters/:letterId/replies", async (req, res) => {

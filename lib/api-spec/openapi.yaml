@@ -181,7 +181,7 @@ paths:
           description: Letter with text only when physically unlocked
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/NearbyLetterRecord" }
+              schema: { $ref: "#/components/schemas/UnlockedLetterRecord" }
         "403":
           description: Letter remains locked
           content:
@@ -376,19 +376,30 @@ components:
         isOwn: { type: boolean }
     NearbyLetterRecord:
       type: object
-      required: [id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status, isOwn, isUnlocked]
+      required: [id, text, createdAt, visibility, anonymous, status, isOwn, isUnlocked, distanceMeters]
       properties:
         id: { type: string }
         text: { type: [string, "null"] }
         createdAt: { type: string, format: date-time }
-        latitude: { type: number }
-        longitude: { type: number }
-        accuracy: { type: number }
         visibility: { type: string, enum: [nearby] }
         anonymous: { type: boolean, const: true }
         status: { type: string, enum: [dropped] }
         isOwn: { type: boolean }
         isUnlocked: { type: boolean }
+        distanceMeters: { type: number, minimum: 0, maximum: 100 }
+    UnlockedLetterRecord:
+      type: object
+      required: [id, text, createdAt, visibility, anonymous, status, isOwn, isUnlocked, distanceMeters]
+      properties:
+        id: { type: string }
+        text: { type: string }
+        createdAt: { type: string, format: date-time }
+        visibility: { type: string, enum: [nearby] }
+        anonymous: { type: boolean, const: true }
+        status: { type: string, enum: [dropped] }
+        isOwn: { type: boolean }
+        isUnlocked: { type: boolean, const: true }
+        distanceMeters: { type: number, minimum: 0 }
     OwnedLetterRecord:
       allOf:
         - $ref: "#/components/schemas/LetterRecord"

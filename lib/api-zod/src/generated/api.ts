@@ -120,18 +120,21 @@ export const GetNearbyLineLettersQueryParams = zod.object({
   "radius": zod.coerce.number().min(1).max(getNearbyLineLettersQueryRadiusMax).default(getNearbyLineLettersQueryRadiusDefault)
 })
 
+export const getNearbyLineLettersResponseDistanceMetersMin = 0;
+export const getNearbyLineLettersResponseDistanceMetersMax = 100;
+
+
+
 export const GetNearbyLineLettersResponseItem = zod.object({
   "id": zod.string(),
   "text": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
-  "latitude": zod.number(),
-  "longitude": zod.number(),
-  "accuracy": zod.number(),
   "visibility": zod.enum(['nearby']),
   "anonymous": zod.literal(true),
   "status": zod.enum(['dropped']),
   "isOwn": zod.boolean(),
-  "isUnlocked": zod.boolean()
+  "isUnlocked": zod.boolean(),
+  "distanceMeters": zod.number().min(getNearbyLineLettersResponseDistanceMetersMin).max(getNearbyLineLettersResponseDistanceMetersMax)
 })
 export const GetNearbyLineLettersResponse = zod.array(GetNearbyLineLettersResponseItem)
 
@@ -178,18 +181,20 @@ export const GetLineLetterQueryParams = zod.object({
   "longitude": zod.coerce.number().min(getLineLetterQueryLongitudeMin).max(getLineLetterQueryLongitudeMax)
 })
 
+export const getLineLetterResponseDistanceMetersMin = 0;
+
+
+
 export const GetLineLetterResponse = zod.object({
   "id": zod.string(),
-  "text": zod.string().nullable(),
+  "text": zod.string(),
   "createdAt": zod.coerce.date(),
-  "latitude": zod.number(),
-  "longitude": zod.number(),
-  "accuracy": zod.number(),
   "visibility": zod.enum(['nearby']),
   "anonymous": zod.literal(true),
   "status": zod.enum(['dropped']),
   "isOwn": zod.boolean(),
-  "isUnlocked": zod.boolean()
+  "isUnlocked": zod.literal(true),
+  "distanceMeters": zod.number().min(getLineLetterResponseDistanceMetersMin)
 })
 
 

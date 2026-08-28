@@ -12,6 +12,7 @@ type DiscoveryFieldProps = {
   currentLocation: LocationData | null;
   locationAccuracy: number | null;
   loading: boolean;
+  searching: boolean;
   onRefresh: () => void;
   onSelect: (letter: NearbyLetter) => void;
   onDismiss: () => void;
@@ -20,15 +21,16 @@ type DiscoveryFieldProps = {
 function EmptyFieldState({
   locationStatus,
   locationReady,
-}: Pick<DiscoveryFieldProps, 'locationStatus' | 'locationReady'>) {
-  const isLoading = locationStatus === 'checking' || locationStatus === 'requesting';
-  const title = locationReady ? 'Nothing here.' : isLoading ? 'Finding you.' : 'Location needed.';
+  searching,
+}: Pick<DiscoveryFieldProps, 'locationStatus' | 'locationReady' | 'searching'>) {
+  const isLoading = searching || locationStatus === 'checking' || locationStatus === 'requesting';
+  const title = searching ? 'SEARCHING NEARBY…' : locationReady ? 'NOTHING HERE' : isLoading ? 'Finding you.' : 'Location needed.';
   const message = locationReady
-    ? 'Maybe someone will leave something behind.'
+    ? searching ? 'Looking for nearby signals.' : 'Maybe someone will leave something behind.'
     : isLoading
       ? 'Looking for nearby signals.'
       : 'Enable location to find letters around you.';
-  const kicker = locationReady ? 'NO SIGNALS WITHIN 100M' : isLoading ? 'GPS LOADING' : 'DISCOVERY PAUSED';
+  const kicker = searching ? 'DATABASE SEARCH' : locationReady ? 'NO SIGNALS WITHIN 100M' : isLoading ? 'GPS LOADING' : 'DISCOVERY PAUSED';
 
   return (
     <div className="line-field-empty" data-testid="state-discovery-empty">
@@ -109,6 +111,7 @@ export function DiscoveryField({
   currentLocation,
   locationAccuracy,
   loading,
+  searching,
   onRefresh,
   onSelect,
   onDismiss,
@@ -204,7 +207,7 @@ export function DiscoveryField({
         </button>
       ))}
 
-      {!hasResults && <EmptyFieldState locationStatus={locationStatus} locationReady={locationReady} />}
+      {!hasResults && <EmptyFieldState locationStatus={locationStatus} locationReady={locationReady} searching={searching} />}
 
       {selectedLetter && (
         <div className={`line-letter-card line-view-enter ${selectedLetter.isUnlocked ? 'line-letter-card-found' : ''}`} data-testid="card-selected-letter">

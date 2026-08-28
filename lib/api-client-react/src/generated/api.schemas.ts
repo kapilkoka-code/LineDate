@@ -134,14 +134,43 @@ export interface NearbyLetterRecord {
   /** @nullable */
   text: string | null;
   createdAt: string;
-  latitude: number;
-  longitude: number;
-  accuracy: number;
   visibility: NearbyLetterRecordVisibility;
   anonymous: true;
   status: NearbyLetterRecordStatus;
   isOwn: boolean;
   isUnlocked: boolean;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  distanceMeters: number;
+}
+
+export type UnlockedLetterRecordVisibility = typeof UnlockedLetterRecordVisibility[keyof typeof UnlockedLetterRecordVisibility];
+
+
+export const UnlockedLetterRecordVisibility = {
+  nearby: 'nearby',
+} as const;
+
+export type UnlockedLetterRecordStatus = typeof UnlockedLetterRecordStatus[keyof typeof UnlockedLetterRecordStatus];
+
+
+export const UnlockedLetterRecordStatus = {
+  dropped: 'dropped',
+} as const;
+
+export interface UnlockedLetterRecord {
+  id: string;
+  text: string;
+  createdAt: string;
+  visibility: UnlockedLetterRecordVisibility;
+  anonymous: true;
+  status: UnlockedLetterRecordStatus;
+  isOwn: boolean;
+  isUnlocked: true;
+  /** @minimum 0 */
+  distanceMeters: number;
 }
 
 export type OwnedLetterRecord = LetterRecord & {

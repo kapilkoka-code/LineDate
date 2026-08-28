@@ -40,6 +40,7 @@ import type {
   NearbyLetterRecord,
   OwnedLetterRecord,
   SentReplyRecord,
+  UnlockedLetterRecord,
   UpdateProfileRequest,
   WriterReplyRecord
 } from './api.schemas';
@@ -807,9 +808,9 @@ export const getGetLineLetterUrl = (letterId: string,
 }
 
 export const getLineLetter = async (letterId: string,
-    params: GetLineLetterParams, options?: Parameters<typeof customFetch>[1]): Promise<NearbyLetterRecord> => {
+    params: GetLineLetterParams, options?: Parameters<typeof customFetch>[1]): Promise<UnlockedLetterRecord> => {
 
-  return customFetch<NearbyLetterRecord>(getGetLineLetterUrl(letterId,params),
+  return customFetch<UnlockedLetterRecord>(getGetLineLetterUrl(letterId,params),
   {
     ...options,
     method: 'GET'

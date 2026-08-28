@@ -1,0 +1,122 @@
+Continue the existing LINE project. Steps 1–11 are complete and validated. Do not rebuild or break existing functionality.
+
+STEP 12 — REAL MULTI-USER DISCOVERY
+
+Now improve DISCOVER so it becomes a real location-based discovery experience using the database-backed letters from Step 11.
+
+Build
+
+1. Nearby letters
+
+* Retrieve letters created by OTHER users.
+* Use the user’s current GPS position.
+* Discovery radius remains 100m.
+* Calculate actual distance using the existing Haversine logic.
+* Exclude the current user’s own letters.
+
+2. Discovery markers
+    Display nearby letters as minimal anonymous markers.
+
+Each should show:
+
+ANONYMOUS LETTER
+
+XXm away
+
+Do not reveal:
+
+* writer identity
+* letter text
+* coordinates
+
+3. Letter preview
+    Tapping a marker opens the existing locked preview.
+
+Beyond 10m:
+
+MOVE CLOSER TO DISCOVER
+
+Within 10m:
+
+LETTER FOUND
+
+OPEN LETTER
+
+Reuse the existing Step 5 proximity logic.
+
+4. Database source
+    The database is now authoritative.
+
+Do not use mock letters for normal discovery.
+
+Do not expose unnecessary database fields to the client.
+
+5. Location refresh
+    Keep the existing manual refresh/recenter functionality.
+
+After refreshing:
+
+* retrieve the latest nearby letters
+* recalculate distances
+* update locked/unlocked states
+
+Do not implement continuous GPS polling yet.
+
+6. Loading / empty states
+
+Loading:
+
+SEARCHING NEARBY…
+
+No letters:
+
+NOTHING HERE
+
+“Maybe someone will leave something behind.”
+
+Location unavailable:
+
+Use the existing location error experience.
+
+7. Privacy
+
+Never expose raw coordinates or writer identity.
+
+Do not return letter contents for letters outside the 10m unlock condition.
+
+Enforce appropriate authorization server-side where possible; do not rely only on hiding information in the frontend.
+
+DO NOT IMPLEMENT YET
+
+Do not build:
+
+* AR/camera
+* REDLINE
+* payments
+* subscriptions
+* push notifications
+* real-time location tracking
+* chat
+* advanced moderation
+
+TEST
+
+Verify with two real accounts:
+
+1. User A creates a letter.
+2. User B can discover it when within 100m.
+3. User B cannot discover it beyond 100m.
+4. User B cannot read it beyond 10m.
+5. User B can read it within 10m.
+6. User A’s own letter does not appear in their discovery results.
+7. Writer identity remains hidden.
+8. Distances update after location refresh.
+9. Database remains the authoritative source.
+10. No letter content or private coordinates leak through the discovery API.
+11. Existing replies, physical reply access and identity reveal still work.
+12. TypeScript typecheck passes.
+13. Production build passes.
+14. Mobile browser testing passes.
+15. Browser/server logs remain clean.
+
+After completing Step 12, STOP. Do not implement Step 13.

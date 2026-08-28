@@ -1,12 +1,13 @@
 import type { LocationData } from '@/hooks/useLocation';
 import type { Letter } from '@/services/letters';
+import type { NearbyLetterRecord } from '@/services/api';
 
 export const DISCOVERY_RANGE_METERS = 100;
 export const UNLOCK_DISTANCE_METERS = 10;
 
 export type NearbyLetter = {
   id: string;
-  letter: Letter;
+  letter: Pick<Letter, 'id' | 'text' | 'createdAt' | 'visibility' | 'anonymous' | 'status' | 'isOwn' | 'isUnlocked'>;
   distanceMeters: number;
   distanceLabel: string;
   isUnlocked: boolean;
@@ -48,11 +49,9 @@ function formatDistance(distanceMeters: number) {
 }
 
 export function getNearbyLetters(
-  currentLocation: LocationData | null,
-  letters: Letter[],
+  _currentLocation: LocationData | null,
+  letters: NearbyLetterRecord[],
 ): NearbyLetter[] {
-  if (!currentLocation) return [];
-
   const markerPositions = [
     { top: '30%', left: '22%', tone: 'coral' as const },
     { top: '54%', left: '69%', tone: 'paper' as const },
@@ -62,12 +61,21 @@ export function getNearbyLetters(
   ];
 
   return letters
-    .filter((letter) => letter.isOwn !== true)
+    .filter((letter) => letter.distanceMeters <= DISCOVERY_RANGE_METERS)
     .map((letter) => ({
-      letter,
-      distanceMeters: distanceBetweenLocations(currentLocation, letter),
+      letter: {
+        id: letter.id,
+        text: letter.text ?? '',
+        createdAt: letter.createdAt,
+        visibility: letter.visibility,
+        anonymous: letter.anonymous,
+        status: letter.status,
+        isOwn: letter.isOwn,
+        isUnlocked: letter.isUnlocked,
+      },
+      distanceMeters: letter.distanceMeters,
+      isUnlocked: letter.isUnlocked,
     }))
-    .filter(({ distanceMeters }) => distanceMeters <= DISCOVERY_RANGE_METERS)
     .sort((first, second) => first.distanceMeters - second.distanceMeters)
     .map(({ letter, distanceMeters }, index) => {
       const marker = markerPositions[index % markerPositions.length];
@@ -77,9 +85,7 @@ export function getNearbyLetters(
         letter,
         distanceMeters,
         distanceLabel: formatDistance(distanceMeters),
-        // The server is authoritative for access; the local calculation is only
-        // retained for distance presentation and legacy records.
-        isUnlocked: letter.isUnlocked ?? isLetterWithinUnlockRange(currentLocation, letter),
+        isUnlocked: letter.isUnlocked,
         ...marker,
       };
     });

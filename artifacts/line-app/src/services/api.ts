@@ -4,6 +4,11 @@ export type Letter = {
   accuracy: number; visibility: 'nearby'; anonymous: true; status: 'dropped'; isOwn: boolean;
   isUnlocked?: boolean; replyCount?: number;
 };
+export type NearbyLetterRecord = {
+  id: string; text: string | null; createdAt: string; visibility: 'nearby';
+  anonymous: true; status: 'dropped'; isOwn: false; isUnlocked: boolean;
+  distanceMeters: number;
+};
 export type WriterReply = {
   id: string; letterId: string; text: string; createdAt: string; status: 'sent';
   senderUserId: string; senderLineId: string; senderDisplayName: string; identityRevealed: boolean;
@@ -27,7 +32,7 @@ const query = (location: Pick<LocationPayload, 'latitude' | 'longitude'>) => `?l
 export const api = {
   profile: () => request<LineProfile>('/profile'),
   updateProfile: (displayName: string) => request<LineProfile>('/profile', { method: 'PATCH', body: JSON.stringify({ displayName }) }),
-  nearby: (location: Pick<LocationPayload, 'latitude' | 'longitude'>) => request<Letter[]>(`/letters/nearby${query(location)}&radius=100`),
+  nearby: (location: Pick<LocationPayload, 'latitude' | 'longitude'>) => request<NearbyLetterRecord[]>(`/letters/nearby${query(location)}&radius=100`),
   letter: (id: string, location: Pick<LocationPayload, 'latitude' | 'longitude'>) => request<Letter>(`/letters/${encodeURIComponent(id)}${query(location)}`),
   createLetter: (data: LocationPayload & { id: string; text: string; visibility: 'nearby'; anonymous: true; status: 'dropped' }) => request<Letter>('/letters', { method: 'POST', body: JSON.stringify(data) }),
   myLetters: () => request<Letter[]>('/letters/mine'),

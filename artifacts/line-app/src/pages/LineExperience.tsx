@@ -60,15 +60,29 @@ function OpeningScreen({ onSignIn }: { onSignIn: () => void }) {
 
 function DiscoverView({ location, onDropLetter }: { location: LocationState; onDropLetter: () => void }) {
   const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
-  const [storedLetters, setStoredLetters] = useState<Letter[]>([]);
+  const [storedLetters, setStoredLetters] = useState<import('@/services/api').NearbyLetterRecord[]>([]);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
 
   useEffect(() => {
-    if (!location.location) return;
+    if (!location.location) {
+      setStoredLetters([]);
+      return;
+    }
+    let cancelled = false;
+    setNearbyLoading(true);
     void api.nearby(location.location)
-      .then((letters) => setStoredLetters(letters.map((letter) => ({
-        ...letter, text: letter.text ?? '', writerId: '', writerDisplayName: 'Anonymous User',
-      }))))
-      .catch(() => setStoredLetters([]));
+      .then((letters) => {
+        if (!cancelled) setStoredLetters(letters);
+      })
+      .catch(() => {
+        if (!cancelled) setStoredLetters([]);
+      })
+      .finally(() => {
+        if (!cancelled) setNearbyLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [location.location]);
 
   const nearbyLetters = useMemo(
@@ -112,7 +126,8 @@ function DiscoverView({ location, onDropLetter }: { location: LocationState; onD
         locationReady={locationReady}
         currentLocation={location.location}
         locationAccuracy={location.location?.accuracy ?? null}
-        loading={location.loading}
+        loading={location.loading || nearbyLoading}
+        searching={nearbyLoading}
         onRefresh={location.requestLocation}
         onSelect={(letter) => setSelectedLetterId(letter.id)}
         onDismiss={() => setSelectedLetterId(null)}

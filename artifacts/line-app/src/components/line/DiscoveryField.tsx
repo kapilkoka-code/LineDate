@@ -1,6 +1,7 @@
 import { BookOpen, LockKeyhole, RefreshCw, ShieldAlert, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { LocationStatus } from '@/hooks/useLocation';
+import type { LocationData, LocationStatus } from '@/hooks/useLocation';
+import { ReplyComposer } from '@/components/line/ReplyComposer';
 import { UNLOCK_DISTANCE_METERS, type NearbyLetter } from '@/services/discovery';
 
 type DiscoveryFieldProps = {
@@ -8,6 +9,7 @@ type DiscoveryFieldProps = {
   selectedLetter: NearbyLetter | null;
   locationStatus: LocationStatus;
   locationReady: boolean;
+  currentLocation: LocationData | null;
   locationAccuracy: number | null;
   loading: boolean;
   onRefresh: () => void;
@@ -42,12 +44,14 @@ function LetterReader({
   locationAccuracy,
   loading,
   onRefresh,
+  onReply,
   onClose,
 }: {
   letter: NearbyLetter;
   locationAccuracy: number | null;
   loading: boolean;
   onRefresh: () => void;
+  onReply: () => void;
   onClose: () => void;
 }) {
   const createdAt = new Date(letter.letter.createdAt);
@@ -87,6 +91,12 @@ function LetterReader({
         <RefreshCw size={13} strokeWidth={1.4} className={loading ? 'line-refresh-spinning' : ''} />
         Refresh proximity
       </button>
+      {!letter.letter.isOwn && (
+        <button type="button" className="line-proximity-reply line-mono" onClick={onReply} data-testid="button-reply-to-letter">
+          Reply
+          <BookOpen size={13} strokeWidth={1.4} />
+        </button>
+      )}
     </article>
   );
 }
@@ -96,6 +106,7 @@ export function DiscoveryField({
   selectedLetter,
   locationStatus,
   locationReady,
+  currentLocation,
   locationAccuracy,
   loading,
   onRefresh,
@@ -103,10 +114,12 @@ export function DiscoveryField({
   onDismiss,
 }: DiscoveryFieldProps) {
   const [readerOpen, setReaderOpen] = useState(false);
+  const [replyOpen, setReplyOpen] = useState(false);
   const hasResults = locationReady && letters.length > 0;
 
   useEffect(() => {
     setReaderOpen(false);
+    setReplyOpen(false);
   }, [selectedLetter?.id]);
 
   useEffect(() => {
@@ -121,9 +134,26 @@ export function DiscoveryField({
           locationAccuracy={locationAccuracy}
           loading={loading}
           onRefresh={onRefresh}
+          onReply={() => {
+            setReaderOpen(false);
+            setReplyOpen(true);
+          }}
           onClose={() => setReaderOpen(false)}
         />
       </section>
+    );
+  }
+
+  if (replyOpen && selectedLetter) {
+    return (
+      <ReplyComposer
+        letter={selectedLetter}
+        currentLocation={currentLocation}
+        locationAccuracy={locationAccuracy}
+        loading={loading}
+        onRefresh={onRefresh}
+        onClose={() => setReplyOpen(false)}
+      />
     );
   }
 

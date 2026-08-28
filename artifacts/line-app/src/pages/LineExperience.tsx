@@ -100,6 +100,7 @@ function DiscoverView({ location, onDropLetter }: { location: LocationState; onD
         selectedLetter={selectedLetter}
         locationStatus={location.status}
         locationReady={locationReady}
+        currentLocation={location.location}
         locationAccuracy={location.location?.accuracy ?? null}
         loading={location.loading}
         onRefresh={location.requestLocation}

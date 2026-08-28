@@ -1,0 +1,137 @@
+Continue the existing LINE project. Steps 1–5 are complete and validated. Do not rebuild or break existing functionality.
+
+STEP 6 — REPLY TO A LETTER
+
+Add the ability for a user who has physically unlocked and read another user’s letter to reply to it.
+
+For now, replies remain localStorage-only. Do not add a backend or real-time synchronization.
+
+1. REPLY ACTION
+
+Inside the unlocked letter reader, add:
+
+REPLY
+
+Only an unlocked external letter can be replied to.
+
+Do not show Reply for:
+
+* locked letters
+* the user’s own letters
+
+2. REPLY COMPOSER
+
+Create a reply screen consistent with LINE’s anonymous letter design.
+
+Show:
+
+WRITE A REPLY
+
+Large text field.
+
+Maximum: 500 characters
+
+Live counter:
+
+0 / 500
+
+Prevent empty/whitespace-only replies.
+
+3. IDENTITY RULE
+
+The person replying is NOT anonymous to the original letter writer.
+
+However, do not expose their identity publicly or to the letter reader.
+
+For this prototype, since authentication does not exist yet, create a temporary local identifier for the replying user, such as:
+
+LINE-XXXXXX
+
+Clearly structure the data so that this temporary identifier can later be replaced by a real authenticated user identity.
+
+Do not ask for a real name.
+
+4. REPLY PREVIEW
+
+Before sending, show a preview similar to the original letter.
+
+Then provide:
+
+SEND REPLY
+
+After sending:
+
+REPLY SENT
+
+“Your reply has been left for them.”
+
+Do not imply that the other user has actually received it yet, because there is still no backend.
+
+5. REPLY DATA
+
+Create a reusable TypeScript LetterReply type containing at minimum:
+
+* id
+* letterId
+* text
+* createdAt
+* senderId
+* status
+
+Store replies in localStorage using a dedicated storage/service utility.
+
+Keep this separate from UI components.
+
+6. REPLY ACCESS
+
+The original writer should eventually be able to receive this reply.
+
+However, do not build the writer’s reply inbox yet.
+
+For now, simply persist the reply correctly so Step 7 can build the writer-side experience.
+
+7. PROXIMITY REQUIREMENT
+
+A reply can only be created after the user has successfully unlocked the letter through the existing 10m physical proximity rule.
+
+Do not allow users to bypass proximity by navigating directly to the reply screen.
+
+If the user moves beyond the allowed distance before sending, prevent the reply from being submitted.
+
+Reuse the existing proximity/location logic.
+
+8. IMPORTANT
+
+Do NOT implement yet:
+
+* backend
+* database
+* authentication
+* real multi-user synchronization
+* writer reply inbox
+* identity reveal
+* remote reply access
+* premium access
+* notifications
+* AR/camera
+* REDLINE
+* payments
+
+TEST
+
+Verify:
+
+1. Locked letters cannot be replied to.
+2. Own letters cannot be replied to.
+3. Only unlocked external letters show Reply.
+4. Reply has a 500-character limit.
+5. Empty replies cannot be sent.
+6. Proximity is revalidated before sending.
+7. Reply is saved to localStorage.
+8. Refreshing the browser does not lose the reply.
+9. Existing letter functionality still works.
+10. TypeScript typecheck passes.
+11. Production build passes.
+12. Mobile flow and console logs are clean.
+
+After completing Step 6, STOP. Do not implement Step 7.

@@ -1,0 +1,161 @@
+Continue the existing LINE project. Steps 1–10 are complete and validated. Do not rebuild or break the existing UI or functionality.
+
+STEP 11 — REAL BACKEND & MULTI-USER FOUNDATION
+
+Move LINE from a single-device local prototype toward a real multi-user application.
+
+Objective
+
+Create the backend/database foundation required for different users to eventually:
+
+* create accounts
+* create letters
+* discover letters created by other users
+* reply to letters
+* maintain identity relationships
+
+Do not build AR or REDLINE yet.
+
+1. AUTHENTICATION
+
+Add real user authentication using the most appropriate Replit-supported solution.
+
+Users need a persistent account with:
+
+* unique user ID
+* display name
+* created timestamp
+
+Do not require unnecessary personal information.
+
+Existing local users should be migrated/linked where reasonably possible rather than simply deleting their existing data.
+
+2. DATABASE
+
+Create a real database schema for at least:
+
+Users
+
+* id
+* displayName
+* createdAt
+
+Letters
+
+* id
+* writerId
+* text
+* latitude
+* longitude
+* accuracy
+* visibility
+* anonymous
+* createdAt
+* status
+
+Replies
+
+* id
+* letterId
+* senderUserId
+* letterWriterId
+* text
+* createdAt
+* status
+
+Identity Relationships
+
+* letterId
+* senderUserId
+* identityRevealed
+
+Use proper relationships/foreign keys where supported.
+
+3. SECURITY
+
+Users must only be able to:
+
+* access their own profile
+* manage their own letters
+* see replies belonging to their own letters
+* see their own replies
+
+Do not expose database credentials or secrets to the client.
+
+Do not send unnecessary user/location data to the browser.
+
+4. LETTER CREATION
+
+Update the existing Drop a Letter flow so that a confirmed letter is stored in the real database instead of only localStorage.
+
+Preserve:
+
+* anonymous presentation
+* 500-character limit
+* location requirement
+* accuracy information
+* existing preview/confirmation flow
+
+5. REPLIES
+
+Update the existing reply system so new replies are stored in the database.
+
+Preserve:
+
+* 500-character limit
+* sender identity relationship
+* identity reveal state
+* existing 10m physical access rules
+
+6. DISCOVER
+
+Update discovery so the application can retrieve letters created by other users within the existing 100m discovery range.
+
+Continue using the existing Haversine calculation on the client for now.
+
+Do NOT expose raw coordinates in the UI.
+
+The letter’s actual text must remain unavailable until the existing 10m unlock condition is satisfied.
+
+7. LOCAL STORAGE
+
+Do not immediately remove localStorage.
+
+Use it only for appropriate local UI state/drafts where needed.
+
+The authoritative source for users, letters and replies should now be the database.
+
+8. IMPORTANT
+
+Do NOT implement:
+
+* AR/camera
+* REDLINE
+* payments
+* subscriptions
+* push notifications
+* premium remote access
+* real-time location tracking
+* advanced moderation
+* chat
+
+TEST
+
+Verify:
+
+1. Two separate user accounts can be created.
+2. User A can create a letter.
+3. User B can retrieve/discover User A’s letter.
+4. User A cannot see User B’s private data.
+5. User B cannot see User A’s identity before reveal.
+6. Letter text remains protected until 10m proximity.
+7. User B can reply after unlocking.
+8. User A can access the reply according to existing physical-access rules.
+9. Identity reveal continues working correctly.
+10. Existing local drafts remain functional.
+11. Database data persists after browser reload.
+12. TypeScript typecheck passes.
+13. Production build passes.
+14. Mobile flow and browser console are clean.
+
+After completing Step 11, STOP. Do not implement Step 12.

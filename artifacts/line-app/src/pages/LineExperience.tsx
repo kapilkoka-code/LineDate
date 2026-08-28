@@ -19,7 +19,7 @@ import {
   type LocalUser,
 } from '@/services/identity';
 import { loadLetters, type Letter } from '@/services/letters';
-import { loadReplies, type LetterReply } from '@/services/replies';
+import { loadReplies, setReplyIdentityRevealed, type LetterReply } from '@/services/replies';
 
 const profileRows = ['Privacy', 'Notifications', 'Location', 'Safety', 'Account'];
 
@@ -202,14 +202,17 @@ function RepliesView({
   hasReplies,
   location,
   onBack,
+  onRepliesUpdated,
 }: {
   letter: Letter;
   replies: LetterReply[];
   hasReplies: boolean;
   location: LocationState;
   onBack: () => void;
+  onRepliesUpdated: (replies: LetterReply[]) => void;
 }) {
   const [showReplies, setShowReplies] = useState(false);
+  const [revealingReplyId, setRevealingReplyId] = useState<string | null>(null);
   const currentDistance = location.location
     ? distanceBetweenLocations(location.location, letter)
     : null;
@@ -303,8 +306,43 @@ function RepliesView({
                 </div>
                 <p>{reply.text}</p>
                 <div className="line-reply-inbox-meta line-mono">
-                  <span>FROM TEMPORARY ID</span>
-                  <strong>{reply.senderId}</strong>
+                  <div className="line-reply-from">
+                    <span>REPLY FROM</span>
+                    <strong>{reply.senderDisplayName}</strong>
+                    <small className="line-mono">{reply.senderId}</small>
+                  </div>
+                  {reply.identityRevealed ? (
+                    <span className="line-reply-revealed line-mono">IDENTITY REVEALED</span>
+                  ) : revealingReplyId === reply.id ? (
+                    <div className="line-reveal-confirmation" role="dialog" aria-label="Confirm identity reveal">
+                      <span className="line-mono">Reveal your identity?</span>
+                      <p>Your display name and LINE ID will become visible to this person.</p>
+                      <div>
+                        <button type="button" className="line-mono" onClick={() => setRevealingReplyId(null)} data-testid={`button-cancel-reveal-${reply.id}`}>
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="line-mono line-reveal-confirm"
+                          onClick={() => {
+                            const updatedReplies = setReplyIdentityRevealed(reply.id, true);
+                            if (updatedReplies.length > 0) onRepliesUpdated(updatedReplies);
+                            setRevealingReplyId(null);
+                          }}
+                          data-testid={`button-confirm-reveal-${reply.id}`}
+                        >
+                          Reveal
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="line-reveal-control">
+                      <p>Reveal yourself to the person who replied to your letter.</p>
+                      <button type="button" className="line-reveal-action line-mono" onClick={() => setRevealingReplyId(reply.id)} data-testid={`button-reveal-identity-${reply.id}`}>
+                        Reveal my identity
+                      </button>
+                    </div>
+                  )}
                 </div>
               </article>
             ))}
@@ -368,22 +406,101 @@ function MyLetters({
   );
 }
 
+function MyReplies({
+  letters,
+  replies,
+  location,
+}: {
+  letters: Letter[];
+  replies: LetterReply[];
+  location: LocationState;
+}) {
+  const replyEntries = replies
+    .map((reply) => ({
+      reply,
+      letter: letters.find((letter) => letter.id === reply.letterId) ?? null,
+    }))
+    .filter((entry): entry is { reply: LetterReply; letter: Letter } => entry.letter !== null);
+
+  if (replyEntries.length === 0) {
+    return (
+      <div className="line-my-letters-empty line-view-enter" data-testid="panel-my-replies-empty">
+        <FileText size={18} strokeWidth={1.2} />
+        <p>You haven’t replied to a letter yet.</p>
+        <span>Find something nearby first.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="line-my-replies line-view-enter" data-testid="panel-my-replies">
+      <div className="line-my-replies-header">
+        <span className="line-mono">SENT REPLIES / LOCAL</span>
+        <button type="button" className="line-replies-refresh line-mono" onClick={location.requestLocation} disabled={location.loading} data-testid="button-refresh-my-replies">
+          <RefreshCw size={13} strokeWidth={1.4} className={location.loading ? 'line-refresh-spinning' : ''} />
+          Refresh proximity
+        </button>
+      </div>
+      {replyEntries.map(({ reply, letter }) => {
+        const withinRange = isLetterWithinUnlockRange(location.location, letter);
+        return (
+          <article className="line-my-reply-card" key={reply.id} data-testid={`card-my-sent-reply-${reply.id}`}>
+            <div className="line-my-letter-card-topline line-mono">
+              <span>YOUR REPLY</span>
+              <span>{reply.identityRevealed ? 'WRITER RESPONDED' : 'WRITER ANONYMOUS'}</span>
+            </div>
+            <p className="line-my-reply-text">{reply.text}</p>
+            <div className="line-writer-identity-state">
+              {!withinRange ? (
+                <>
+                  <LockKeyhole size={15} strokeWidth={1.3} />
+                  <div>
+                    <span className="line-mono">IDENTITY LOCKED / RETURN WITHIN 10M</span>
+                    <p>Return to the letter location to see what the writer chose.</p>
+                  </div>
+                </>
+              ) : reply.identityRevealed ? (
+                <>
+                  <ShieldCheck size={15} strokeWidth={1.3} />
+                  <div>
+                    <span className="line-mono">THE WRITER REVEALED THEMSELVES</span>
+                    <strong>{reply.letterWriterDisplayName}</strong>
+                    <small className="line-mono">{reply.letterWriterId}</small>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck size={15} strokeWidth={1.3} />
+                  <div>
+                    <span className="line-mono">THE WRITER CHOSE TO REMAIN ANONYMOUS.</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProfileView({ location }: { location: LocationState }) {
   const [localUser, setLocalUser] = useState<LocalUser>(() => getOrCreateLocalUser());
   const [displayNameDraft, setDisplayNameDraft] = useState(localUser.displayName);
   const [displayNameSaved, setDisplayNameSaved] = useState(false);
   const [activeRow, setActiveRow] = useState<string | null>(null);
   const [showMyLetters, setShowMyLetters] = useState(false);
+  const [showMyReplies, setShowMyReplies] = useState(false);
   const [letters, setLetters] = useState<Letter[]>([]);
   const [replies, setReplies] = useState<LetterReply[]>([]);
   const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (showMyLetters) {
-      setLetters(loadLetters().filter((letter) => letter.writerId === localUser.id));
+    if (showMyLetters || showMyReplies) {
+      setLetters(loadLetters());
       setReplies(loadReplies());
     }
-  }, [localUser.id, showMyLetters]);
+  }, [showMyLetters, showMyReplies]);
 
   const saveDisplayName = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -393,7 +510,9 @@ function ProfileView({ location }: { location: LocationState }) {
     setDisplayNameSaved(true);
   };
 
-  const selectedLetter = letters.find((letter) => letter.id === selectedLetterId) ?? null;
+  const ownedLetters = letters.filter((letter) => letter.writerId === localUser.id);
+  const sentReplies = replies.filter((reply) => reply.senderUserId === localUser.id);
+  const selectedLetter = ownedLetters.find((letter) => letter.id === selectedLetterId) ?? null;
   const selectedLetterReplies = selectedLetter
     ? replies.filter((reply) => reply.letterId === selectedLetter.id)
     : [];
@@ -414,6 +533,12 @@ function ProfileView({ location }: { location: LocationState }) {
           hasReplies={selectedLetterReplies.length > 0}
           location={location}
           onBack={() => setSelectedLetterId(null)}
+          onRepliesUpdated={(updatedReplies) => {
+            const updatesById = new Map(updatedReplies.map((reply) => [reply.id, reply]));
+            setReplies((currentReplies) =>
+              currentReplies.map((reply) => updatesById.get(reply.id) ?? reply),
+            );
+          }}
         />
       ) : (
         <>
@@ -455,7 +580,10 @@ function ProfileView({ location }: { location: LocationState }) {
           <button
             type="button"
             className={`line-my-letters-trigger ${showMyLetters ? 'line-my-letters-trigger-active' : ''}`}
-            onClick={() => setShowMyLetters((open) => !open)}
+            onClick={() => {
+              setShowMyReplies(false);
+              setShowMyLetters((open) => !open);
+            }}
             aria-expanded={showMyLetters}
             data-testid="button-my-letters"
           >
@@ -465,7 +593,24 @@ function ProfileView({ location }: { location: LocationState }) {
             </span>
             <FileText size={17} strokeWidth={1.3} />
           </button>
-          {showMyLetters && <MyLetters letters={letters} replies={replies} onSelectLetter={(letter) => setSelectedLetterId(letter.id)} />}
+          {showMyLetters && <MyLetters letters={ownedLetters} replies={replies} onSelectLetter={(letter) => setSelectedLetterId(letter.id)} />}
+          <button
+            type="button"
+            className={`line-my-letters-trigger line-my-replies-trigger ${showMyReplies ? 'line-my-letters-trigger-active' : ''}`}
+            onClick={() => {
+              setShowMyLetters(false);
+              setShowMyReplies((open) => !open);
+            }}
+            aria-expanded={showMyReplies}
+            data-testid="button-my-replies"
+          >
+            <span className="line-my-letters-trigger-copy">
+              <span className="line-mono">YOUR RESPONSES</span>
+              <strong>My replies</strong>
+            </span>
+            <ChevronRight size={17} strokeWidth={1.3} />
+          </button>
+          {showMyReplies && <MyReplies letters={letters} replies={sentReplies} location={location} />}
           <div className="line-profile-list" aria-label="Profile settings">
             {profileRows.map((row, index) => (
               <button

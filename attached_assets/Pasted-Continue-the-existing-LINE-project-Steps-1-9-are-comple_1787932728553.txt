@@ -1,0 +1,161 @@
+Continue the existing LINE project. Steps 1–9 are complete and validated. Do not rebuild or break existing functionality.
+
+STEP 10 — IDENTITY REVEAL
+
+Build LINE’s controlled identity-reveal interaction.
+
+CORE RULE
+
+A letter writer is anonymous by default.
+
+When someone replies:
+
+* The replying user’s identity is visible to the letter writer.
+* The letter writer remains anonymous to the reply sender.
+* The writer can choose to reveal their identity.
+
+1. WRITER’S REPLY VIEW
+
+In:
+
+PROFILE → MY LETTERS → What came back
+
+When a reply is unlocked and readable, display the replyer’s:
+
+* display name
+* temporary LINE ID
+
+Clearly label it:
+
+REPLY FROM
+
+The replyer’s identity is therefore visible to the writer.
+
+2. WRITER IDENTITY
+
+The writer must remain:
+
+ANONYMOUS
+
+to the person who replied.
+
+Do not display the writer’s display name or LINE ID anywhere in the external reader experience.
+
+3. REVEAL ACTION
+
+Add a subtle action for the writer:
+
+REVEAL MY IDENTITY
+
+Explain:
+
+“Reveal yourself to the person who replied to your letter.”
+
+Before revealing, show a confirmation:
+
+Reveal your identity?
+
+“Your display name and LINE ID will become visible to this person.”
+
+Buttons:
+
+REVEAL
+
+CANCEL
+
+4. AFTER REVEAL
+
+When confirmed:
+
+* Set identityRevealed = true
+* Store the state persistently in localStorage.
+* The reply sender can now see the writer’s:
+    * display name
+    * LINE ID
+
+Show the writer:
+
+IDENTITY REVEALED
+
+Do not allow the state to accidentally revert when the page reloads.
+
+5. IMPORTANT PRIVACY RULE
+
+Identity reveal must be tied specifically to the relationship between:
+
+letterId + reply sender
+
+Do not globally reveal the writer’s identity.
+
+For example:
+
+If three people reply to one letter, the writer should be able to reveal themselves to:
+
+* Person A
+* but remain anonymous to Person B
+* and remain anonymous to Person C
+
+unless they separately reveal themselves.
+
+Create an appropriate relationship/state structure to support this.
+
+6. REPLYER VIEW
+
+Where the reply sender can eventually view the writer’s identity, create the necessary UI/data foundation.
+
+If the writer has NOT revealed themselves:
+
+THE WRITER CHOSE TO REMAIN ANONYMOUS.
+
+If revealed:
+
+Show:
+
+[Display Name]
+
+LINE-XXXXXX
+
+Do not expose this information until identityRevealed === true.
+
+Because the app is still local-only, clearly label this as prototype/local behavior where necessary.
+
+7. DO NOT CHANGE PROXIMITY RULES
+
+Keep all existing physical access rules intact.
+
+Do not allow identity information to bypass the existing 10m letter/reply restrictions.
+
+DO NOT IMPLEMENT YET
+
+Do NOT build:
+
+* authentication
+* backend/database
+* real multi-user synchronization
+* notifications
+* payments
+* premium remote access
+* AR/camera
+* REDLINE
+* real chat/messaging
+
+TEST
+
+Verify:
+
+1. Reply sender identity is visible to the letter writer.
+2. Writer remains anonymous by default.
+3. Writer can reveal themselves.
+4. Reveal requires confirmation.
+5. Reveal persists after reload.
+6. Reveal applies only to the specific reply relationship.
+7. Three different replies can have independent reveal states.
+8. Writer identity never appears before reveal.
+9. Locked letters/replies never expose identity information.
+10. Existing 10m proximity rules remain unchanged.
+11. Existing composer, discovery and My Letters functionality still works.
+12. TypeScript typecheck passes.
+13. Production build passes.
+14. Mobile browser flow and console logs are clean.
+
+After completing Step 10, STOP. Do not implement Step 11.

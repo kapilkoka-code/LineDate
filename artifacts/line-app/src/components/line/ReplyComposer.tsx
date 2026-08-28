@@ -77,8 +77,10 @@ export function ReplyComposer({
         text: trimmedText,
         createdAt: new Date().toISOString(),
         senderId,
+        senderDisplayName: localUser.displayName,
         senderUserId: localUser.id,
         letterWriterId: letter.letter.writerId,
+        letterWriterDisplayName: letter.letter.writerDisplayName,
         identityRevealed: false,
         status: 'sent',
       });

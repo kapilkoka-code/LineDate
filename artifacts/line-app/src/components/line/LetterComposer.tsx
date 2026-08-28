@@ -156,6 +156,7 @@ export function LetterComposer({ location, onClose }: LetterComposerProps) {
       longitude: location.location.longitude,
       accuracy: location.location.accuracy,
       writerId: getOrCreateLocalUser().id,
+      writerDisplayName: getOrCreateLocalUser().displayName,
       isOwn: true,
       visibility: 'nearby',
       anonymous: true,

@@ -11,6 +11,7 @@ export type Letter = {
   longitude: number;
   accuracy: number;
   writerId: string;
+  writerDisplayName: string;
   isOwn?: boolean;
   visibility: LetterVisibility;
   anonymous: true;
@@ -62,6 +63,7 @@ export function loadLetters(): Letter[] {
         ...letter,
         isOwn,
         writerId: letter.writerId ?? (isOwn ? localUser.id : createLegacyWriterId(letter.id)),
+        writerDisplayName: letter.writerDisplayName ?? (isOwn ? localUser.displayName : 'Anonymous User'),
       };
     });
     window.localStorage.setItem(LETTERS_STORAGE_KEY, JSON.stringify(migratedLetters));

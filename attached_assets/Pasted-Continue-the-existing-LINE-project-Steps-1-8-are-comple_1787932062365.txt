@@ -1,0 +1,123 @@
+Continue the existing LINE project. Steps 1–8 are complete and validated. Do not rebuild or break existing functionality.
+
+STEP 9 — IDENTITY FOUNDATION
+
+Introduce LINE’s identity model while keeping the application local-only.
+
+Do NOT add real authentication or a backend yet.
+
+1. LOCAL USER IDENTITY
+
+Create a persistent local user profile containing:
+
+* id
+* displayName
+* createdAt
+
+Generate the ID once and persist it locally.
+
+Use the existing LINE-XXXXXX format as the temporary identity.
+
+The user should be able to set a display name later, but do not require their real name.
+
+2. LETTER IDENTITY
+
+Every letter should have an explicit writer identity internally.
+
+The letter remains publicly displayed as:
+
+ANONYMOUS
+
+The writer’s identity must NOT appear on discovered letters or to people reading them.
+
+3. REPLY IDENTITY
+
+Every reply must contain the replying user’s local identity.
+
+The important product rule is:
+
+The person who replies is identifiable to the original letter writer.
+
+However:
+
+The original letter writer remains anonymous to the person replying unless the writer chooses to reveal themselves.
+
+Implement the data model needed for this distinction.
+
+Do not display the writer’s identity yet.
+
+4. IDENTITY REVEAL STATE
+
+Add a field to the letter/reply relationship representing whether the writer has revealed their identity.
+
+Default:
+
+identityRevealed: false
+
+Do not build the reveal UI yet.
+
+This step is only establishing the data model and correct ownership relationships.
+
+5. MY PROFILE
+
+Update:
+
+PROFILE
+
+to show the user’s temporary LINE identity and display name.
+
+Allow the user to edit their display name locally.
+
+Do not request email, phone number, password, social login, or other authentication information.
+
+6. DATA MIGRATION
+
+Existing letters and replies created in previous steps must continue working.
+
+If older localStorage data does not contain the new identity fields:
+
+* migrate it safely
+* assign the current local user as the owner where appropriate
+* do not delete existing letters or replies
+
+7. PRIVACY
+
+Never display:
+
+* raw coordinates
+* hidden identity fields
+* another user’s private information
+
+Do not expose identity through locked letters or discovery cards.
+
+IMPORTANT
+
+Do NOT implement yet:
+
+* real authentication
+* backend/database
+* multi-user synchronization
+* identity reveal button/UI
+* remote access
+* notifications
+* payments
+* AR/camera
+* REDLINE
+
+TEST
+
+Verify:
+
+1. A persistent local user identity is created.
+2. Refreshing the browser keeps the same identity.
+3. Display name can be changed.
+4. New letters reference their writer internally but remain visually anonymous.
+5. New replies reference their sender internally.
+6. Existing letters/replies continue working.
+7. Old localStorage data migrates safely.
+8. No hidden identity information appears in discovery or locked views.
+9. TypeScript typecheck passes.
+10. Production build passes.
+11. Mobile flow and browser console remain clean.
+
+After completing Step 9, STOP. Do not implement Step 10.

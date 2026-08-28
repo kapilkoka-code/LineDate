@@ -7,6 +7,7 @@ import {
   UNLOCK_DISTANCE_METERS,
   type NearbyLetter,
 } from '@/services/discovery';
+import { getOrCreateLocalUser } from '@/services/identity';
 import { createReplyId, getLocalSenderId, saveReply } from '@/services/replies';
 
 type ReplyComposerProps = {
@@ -38,6 +39,7 @@ export function ReplyComposer({
   const [proximityError, setProximityError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [localUser] = useState(() => getOrCreateLocalUser());
   const [senderId] = useState(() => getLocalSenderId());
 
   const distance = currentLocation
@@ -75,6 +77,9 @@ export function ReplyComposer({
         text: trimmedText,
         createdAt: new Date().toISOString(),
         senderId,
+        senderUserId: localUser.id,
+        letterWriterId: letter.letter.writerId,
+        identityRevealed: false,
         status: 'sent',
       });
       setStage('complete');

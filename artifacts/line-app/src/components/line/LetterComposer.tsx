@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { LocationState } from '@/hooks/useLocation';
+import { getOrCreateLocalUser } from '@/services/identity';
 import { createLetterId, saveLetter, type Letter } from '@/services/letters';
 
 type LetterComposerProps = {
@@ -154,6 +155,7 @@ export function LetterComposer({ location, onClose }: LetterComposerProps) {
       latitude: location.location.latitude,
       longitude: location.location.longitude,
       accuracy: location.location.accuracy,
+      writerId: getOrCreateLocalUser().id,
       isOwn: true,
       visibility: 'nearby',
       anonymous: true,

@@ -1,5 +1,5 @@
 import { ArrowUpRight, ChevronRight, FileText, LockKeyhole, PenLine, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { BottomNav, type AppView } from '@/components/line/BottomNav';
 import { DiscoveryField } from '@/components/line/DiscoveryField';
 import { LineMark } from '@/components/line/LineMark';
@@ -13,6 +13,11 @@ import {
   UNLOCK_DISTANCE_METERS,
   type NearbyLetter,
 } from '@/services/discovery';
+import {
+  getOrCreateLocalUser,
+  updateLocalDisplayName,
+  type LocalUser,
+} from '@/services/identity';
 import { loadLetters, type Letter } from '@/services/letters';
 import { loadReplies, type LetterReply } from '@/services/replies';
 
@@ -364,6 +369,9 @@ function MyLetters({
 }
 
 function ProfileView({ location }: { location: LocationState }) {
+  const [localUser, setLocalUser] = useState<LocalUser>(() => getOrCreateLocalUser());
+  const [displayNameDraft, setDisplayNameDraft] = useState(localUser.displayName);
+  const [displayNameSaved, setDisplayNameSaved] = useState(false);
   const [activeRow, setActiveRow] = useState<string | null>(null);
   const [showMyLetters, setShowMyLetters] = useState(false);
   const [letters, setLetters] = useState<Letter[]>([]);
@@ -372,10 +380,18 @@ function ProfileView({ location }: { location: LocationState }) {
 
   useEffect(() => {
     if (showMyLetters) {
-      setLetters(loadLetters().filter((letter) => letter.isOwn !== false));
+      setLetters(loadLetters().filter((letter) => letter.writerId === localUser.id));
       setReplies(loadReplies());
     }
-  }, [showMyLetters]);
+  }, [localUser.id, showMyLetters]);
+
+  const saveDisplayName = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const updatedUser = updateLocalDisplayName(displayNameDraft);
+    setLocalUser(updatedUser);
+    setDisplayNameDraft(updatedUser.displayName);
+    setDisplayNameSaved(true);
+  };
 
   const selectedLetter = letters.find((letter) => letter.id === selectedLetterId) ?? null;
   const selectedLetterReplies = selectedLetter
@@ -403,9 +419,39 @@ function ProfileView({ location }: { location: LocationState }) {
         <>
           <div className="line-profile-intro">
             <span className="line-section-index line-mono">YOUR PROFILE</span>
-            <h1 className="line-profile-title line-serif">Anonymous<br /><em>User</em></h1>
+            <h1 className="line-profile-title line-serif">{localUser.displayName}</h1>
             <div className="line-private-note"><ShieldCheck size={15} strokeWidth={1.4} /><span>Your identity is private.</span></div>
           </div>
+          <section className="line-profile-identity" data-testid="panel-local-identity">
+            <div className="line-profile-identity-topline line-mono">
+              <span>LOCAL IDENTITY</span>
+              <span>CREATED {formatReplyDate(localUser.createdAt)}</span>
+            </div>
+            <strong className="line-mono" data-testid="text-local-user-id">{localUser.id}</strong>
+            <form onSubmit={saveDisplayName}>
+              <label htmlFor="line-display-name" className="line-mono">DISPLAY NAME</label>
+              <div className="line-profile-name-edit">
+                <input
+                  id="line-display-name"
+                  value={displayNameDraft}
+                  maxLength={40}
+                  onChange={(event) => {
+                    setDisplayNameDraft(event.target.value);
+                    setDisplayNameSaved(false);
+                  }}
+                  aria-label="Display name"
+                  data-testid="input-display-name"
+                />
+                <button type="submit" className="line-mono" data-testid="button-save-display-name">
+                  Save
+                </button>
+              </div>
+            </form>
+            <div className="line-profile-identity-note">
+              <span>{displayNameSaved ? 'DISPLAY NAME SAVED LOCALLY' : 'NO REAL NAME REQUIRED'}</span>
+              <span>PRIVATE / THIS DEVICE</span>
+            </div>
+          </section>
           <button
             type="button"
             className={`line-my-letters-trigger ${showMyLetters ? 'line-my-letters-trigger-active' : ''}`}
@@ -470,6 +516,10 @@ function AppShell() {
   const composerOpenRef = useRef(false);
   const historyEntryRef = useRef(false);
   const closingComposerRef = useRef(false);
+
+  useEffect(() => {
+    getOrCreateLocalUser();
+  }, []);
 
   const closeComposer = useCallback(() => {
     if (!composerOpenRef.current) return;

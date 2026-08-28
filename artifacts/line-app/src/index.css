@@ -2915,6 +2915,7 @@ a:focus-visible {
   font-weight: 400;
   line-height: 0.78;
   letter-spacing: -0.06em;
+  overflow-wrap: anywhere;
 }
 
 .line-private-note {
@@ -2928,6 +2929,89 @@ a:focus-visible {
 
 .line-private-note svg {
   color: var(--line-coral);
+}
+
+.line-profile-identity {
+  margin-bottom: 16px;
+  border: 1px solid rgba(243, 92, 79, 0.34);
+  background:
+    radial-gradient(circle at 100% 0, rgba(243, 92, 79, 0.07), transparent 45%),
+    rgba(232, 223, 209, 0.025);
+  padding: 14px;
+}
+
+.line-profile-identity-topline,
+.line-profile-identity-note {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--line-ash);
+  font-size: 0.44rem;
+}
+
+.line-profile-identity-topline span:first-child {
+  color: var(--line-coral);
+}
+
+.line-profile-identity > strong {
+  display: block;
+  margin: 20px 0 22px;
+  color: var(--line-paper);
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.13em;
+}
+
+.line-profile-identity form > label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--line-ash);
+  font-size: 0.45rem;
+}
+
+.line-profile-name-edit {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.line-profile-name-edit input {
+  min-width: 0;
+  border: 1px solid var(--line-rule);
+  border-radius: 0;
+  outline: none;
+  background: rgba(23, 21, 19, 0.45);
+  padding: 10px 11px;
+  color: var(--line-paper);
+  font-family: var(--app-font-serif);
+  font-size: 1rem;
+}
+
+.line-profile-name-edit input:focus {
+  border-color: var(--line-coral);
+}
+
+.line-profile-name-edit button {
+  border: 1px solid var(--line-coral);
+  background: var(--line-coral);
+  padding: 0 13px;
+  color: var(--line-ink);
+  font-size: 0.48rem;
+}
+
+.line-profile-name-edit button:hover {
+  background: var(--line-paper);
+}
+
+.line-profile-identity-note {
+  margin-top: 10px;
+  border-top: 1px solid var(--line-rule);
+  padding-top: 9px;
+}
+
+.line-profile-identity-note span:first-child {
+  color: var(--line-paper);
 }
 
 .line-profile-list {

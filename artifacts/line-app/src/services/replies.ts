@@ -1,3 +1,6 @@
+import { getOrCreateLocalUser } from '@/services/identity';
+import { loadLetters } from '@/services/letters';
+
 export type ReplyStatus = 'sent';
 
 export type LetterReply = {
@@ -6,13 +9,18 @@ export type LetterReply = {
   text: string;
   createdAt: string;
   senderId: string;
+  senderUserId: string;
+  letterWriterId: string;
+  identityRevealed: boolean;
   status: ReplyStatus;
 };
 
 const REPLIES_STORAGE_KEY = 'line:replies';
-const LOCAL_SENDER_ID_KEY = 'line:sender-id';
 
-function isReply(value: unknown): value is LetterReply {
+type StoredReply = Omit<LetterReply, 'senderUserId' | 'letterWriterId' | 'identityRevealed'> &
+  Partial<Pick<LetterReply, 'senderUserId' | 'letterWriterId' | 'identityRevealed'>>;
+
+function isReply(value: unknown): value is StoredReply {
   if (!value || typeof value !== 'object') return false;
 
   const candidate = value as Partial<LetterReply>;
@@ -22,6 +30,9 @@ function isReply(value: unknown): value is LetterReply {
     typeof candidate.text === 'string' &&
     typeof candidate.createdAt === 'string' &&
     typeof candidate.senderId === 'string' &&
+    (candidate.senderUserId === undefined || typeof candidate.senderUserId === 'string') &&
+    (candidate.letterWriterId === undefined || typeof candidate.letterWriterId === 'string') &&
+    (candidate.identityRevealed === undefined || typeof candidate.identityRevealed === 'boolean') &&
     candidate.status === 'sent'
   );
 }
@@ -34,7 +45,19 @@ export function loadReplies(): LetterReply[] {
     if (!stored) return [];
 
     const parsed: unknown = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed.filter(isReply) : [];
+    if (!Array.isArray(parsed)) return [];
+
+    const writerByLetterId = new Map(
+      loadLetters().map((letter) => [letter.id, letter.writerId]),
+    );
+    const migratedReplies = parsed.filter(isReply).map((reply) => ({
+      ...reply,
+      senderUserId: reply.senderUserId ?? reply.senderId,
+      letterWriterId: reply.letterWriterId ?? writerByLetterId.get(reply.letterId) ?? '',
+      identityRevealed: reply.identityRevealed ?? false,
+    }));
+    window.localStorage.setItem(REPLIES_STORAGE_KEY, JSON.stringify(migratedReplies));
+    return migratedReplies;
   } catch {
     return [];
   }
@@ -45,7 +68,14 @@ export function saveReply(reply: LetterReply): void {
     throw new Error('Reply storage is not available.');
   }
 
-  window.localStorage.setItem(REPLIES_STORAGE_KEY, JSON.stringify([reply, ...loadReplies()]));
+  const localUser = getOrCreateLocalUser();
+  const nextReply = {
+    ...reply,
+    senderId: reply.senderId || localUser.id,
+    senderUserId: localUser.id,
+    identityRevealed: reply.identityRevealed ?? false,
+  };
+  window.localStorage.setItem(REPLIES_STORAGE_KEY, JSON.stringify([nextReply, ...loadReplies()]));
 }
 
 export function createReplyId(): string {
@@ -57,18 +87,5 @@ export function createReplyId(): string {
 }
 
 export function getLocalSenderId(): string {
-  if (typeof window === 'undefined') {
-    return 'LINE-LOCAL';
-  }
-
-  const stored = window.localStorage.getItem(LOCAL_SENDER_ID_KEY);
-  if (stored) return stored;
-
-  const source =
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID().replace(/-/g, '')
-      : `${Date.now()}${Math.random().toString(36).slice(2)}`;
-  const senderId = `LINE-${source.slice(0, 6).toUpperCase()}`;
-  window.localStorage.setItem(LOCAL_SENDER_ID_KEY, senderId);
-  return senderId;
+  return getOrCreateLocalUser().id;
 }

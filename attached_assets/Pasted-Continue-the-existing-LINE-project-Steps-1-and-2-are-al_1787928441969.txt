@@ -1,0 +1,143 @@
+Continue the existing LINE project. Steps 1 and 2 are already complete. Do not rebuild or break existing functionality.
+
+STEP 3 — CREATE ANONYMOUS LETTER
+
+Build the first real LINE feature: allowing a user to write and drop an anonymous letter at their current location.
+
+Build:
+
+1. “DROP A LETTER”
+
+* Add this action to the DISCOVER screen.
+* Open a dedicated letter-writing screen.
+
+2. WRITE
+Show:
+
+* “LEAVE SOMETHING BEHIND”
+* Large letter input
+* Placeholder: “Dear stranger…”
+* Maximum: 500 characters
+* Live counter: 0 / 500
+* Prevent empty/whitespace-only letters.
+
+Show clearly:
+
+ANONYMOUS
+“Your identity won’t be shown with this letter.”
+
+3. LOCATION
+Reuse the existing location system from Step 2.
+
+* Use the user’s current latitude, longitude and accuracy.
+* Never display raw coordinates.
+* If location is unavailable, prevent dropping and show an appropriate location-permission/error message.
+
+4. PREVIEW
+Show the letter as a beautiful, minimal digital note.
+
+Include:
+
+* Anonymous
+* Letter text
+* Current drop location status
+
+Button:
+
+DROP HERE
+
+5. CONFIRMATION
+After pressing it, show:
+
+LETTER LEFT.
+
+“Someone nearby may find it.”
+
+“Your letter is now tied to this place.”
+
+Do not claim that other users can actually see it yet.
+
+6. STORAGE
+For now, use localStorage only. No backend/database.
+
+Create a reusable Letter TypeScript type containing at minimum:
+
+* id
+* text
+* createdAt
+* latitude
+* longitude
+* accuracy
+* visibility
+* anonymous
+* status
+
+Set:
+
+* visibility = anyone_nearby
+* anonymous = true
+* status = dropped
+
+Keep storage logic separate from the UI so we can later replace localStorage with a backend.
+
+7. MY LETTERS
+In PROFILE, add MY LETTERS.
+
+Display locally created letters with:
+
+* text preview
+* date/time
+* status: DROPPED
+
+Never display raw coordinates.
+
+If none exist:
+
+“You haven’t left anything behind yet.”
+
+8. DESIGN
+Maintain the existing LINE aesthetic:
+
+* dark
+* cinematic
+* mysterious
+* premium
+* minimal
+* subtle red accents
+
+Letters should feel like physical notes rather than social-media posts.
+
+DO NOT BUILD YET
+
+Do not implement:
+
+* real multi-user sharing
+* backend/database
+* authentication
+* nearby-letter discovery
+* distance unlocking
+* replies
+* identity reveal
+* notifications
+* camera/AR
+* REDLINE
+* payments/subscriptions
+
+These will be separate steps.
+
+TEST
+
+Verify:
+
+1. Letter can be created.
+2. 500-character limit works.
+3. Empty letters cannot be dropped.
+4. Real location from Step 2 is used.
+5. Preview works.
+6. Letter is saved to localStorage.
+7. Letter remains after refresh.
+8. MY LETTERS displays it.
+9. Existing Step 1 and Step 2 functionality still works.
+10. No build or console errors.
+
+After completing this step, STOP and report what was built. Do not proceed to Step 4.

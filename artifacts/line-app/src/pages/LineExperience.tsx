@@ -1,11 +1,13 @@
-import { ArrowUpRight, ChevronRight, LockKeyhole, ShieldCheck } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowUpRight, ChevronRight, FileText, LockKeyhole, PenLine, ShieldCheck } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DiscoveryLetter } from '@/data/discovery';
 import { BottomNav, type AppView } from '@/components/line/BottomNav';
 import { DiscoveryField } from '@/components/line/DiscoveryField';
 import { LineMark } from '@/components/line/LineMark';
+import { LetterComposer } from '@/components/line/LetterComposer';
 import { LocationHeaderStatus, LocationPanel } from '@/components/line/LocationPanel';
 import { useLocation, type LocationState } from '@/hooks/useLocation';
+import { loadLetters, type Letter } from '@/services/letters';
 
 const profileRows = ['Privacy', 'Notifications', 'Location', 'Safety', 'Account'];
 
@@ -51,7 +53,7 @@ function OpeningScreen({ onEnter }: { onEnter: () => void }) {
   );
 }
 
-function DiscoverView({ location }: { location: LocationState }) {
+function DiscoverView({ location, onDropLetter }: { location: LocationState; onDropLetter: () => void }) {
   const [selectedLetter, setSelectedLetter] = useState<DiscoveryLetter | null>(null);
 
   return (
@@ -68,6 +70,13 @@ function DiscoverView({ location }: { location: LocationState }) {
         <p className="line-view-caption">Fictional signals —<br />not your location.</p>
       </div>
       <LocationPanel location={location} />
+      <button type="button" className="line-drop-letter" onClick={onDropLetter} data-testid="button-open-letter-composer">
+        <span className="line-drop-letter-copy">
+          <span className="line-mono">CREATE SIGNAL</span>
+          <strong>Drop a letter</strong>
+        </span>
+        <PenLine size={17} strokeWidth={1.3} />
+      </button>
       <DiscoveryField selectedLetter={selectedLetter} onSelect={setSelectedLetter} onDismiss={() => setSelectedLetter(null)} />
       <div className="line-discover-footnote line-mono"><span>3 MOCK SIGNALS</span><span>PREVIEW / NO LIVE LETTER DATA</span></div>
     </div>
@@ -136,8 +145,44 @@ function RedlineView() {
   );
 }
 
+function MyLetters({ letters }: { letters: Letter[] }) {
+  if (letters.length === 0) {
+    return (
+      <div className="line-my-letters-empty line-view-enter" data-testid="panel-my-letters-empty">
+        <FileText size={18} strokeWidth={1.2} />
+        <p>You haven’t left anything behind yet.</p>
+        <span>Maybe it’s time.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="line-my-letters-grid line-view-enter" aria-label="Letters you have left" data-testid="panel-my-letters">
+      {letters.map((letter) => (
+        <article className="line-my-letter-card" key={letter.id} data-testid={`card-my-letter-${letter.id}`}>
+          <div className="line-my-letter-card-topline line-mono">
+            <span>ANONYMOUS</span>
+            <span>DROPPED</span>
+          </div>
+          <p>{letter.text}</p>
+          <div className="line-my-letter-meta line-mono">
+            <span>{new Date(letter.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+            <span>LOCATION ACTIVE / ~{Math.max(1, Math.round(letter.accuracy))}m</span>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function ProfileView() {
   const [activeRow, setActiveRow] = useState<string | null>(null);
+  const [showMyLetters, setShowMyLetters] = useState(false);
+  const [letters, setLetters] = useState<Letter[]>([]);
+
+  useEffect(() => {
+    if (showMyLetters) setLetters(loadLetters());
+  }, [showMyLetters]);
 
   return (
     <div className="line-view line-profile-view">
@@ -150,6 +195,20 @@ function ProfileView() {
         <h1 className="line-profile-title line-serif">Anonymous<br /><em>User</em></h1>
         <div className="line-private-note"><ShieldCheck size={15} strokeWidth={1.4} /><span>Your identity is private.</span></div>
       </div>
+      <button
+        type="button"
+        className={`line-my-letters-trigger ${showMyLetters ? 'line-my-letters-trigger-active' : ''}`}
+        onClick={() => setShowMyLetters((open) => !open)}
+        aria-expanded={showMyLetters}
+        data-testid="button-my-letters"
+      >
+        <span className="line-my-letters-trigger-copy">
+          <span className="line-mono">YOUR SIGNALS</span>
+          <strong>My letters</strong>
+        </span>
+        <FileText size={17} strokeWidth={1.3} />
+      </button>
+      {showMyLetters && <MyLetters letters={letters} />}
       <div className="line-profile-list" aria-label="Profile settings">
         {profileRows.map((row, index) => (
           <button
@@ -176,23 +235,85 @@ function ProfileView() {
   );
 }
 
-function AppViewContent({ activeView, location }: { activeView: AppView; location: LocationState }) {
+function AppViewContent({
+  activeView,
+  location,
+  onDropLetter,
+}: {
+  activeView: AppView;
+  location: LocationState;
+  onDropLetter: () => void;
+}) {
   if (activeView === 'camera') return <CameraView />;
   if (activeView === 'redline') return <RedlineView />;
   if (activeView === 'profile') return <ProfileView />;
-  return <DiscoverView location={location} />;
+  return <DiscoverView location={location} onDropLetter={onDropLetter} />;
 }
 
 function AppShell() {
   const [activeView, setActiveView] = useState<AppView>('discover');
   const location = useLocation();
+  const [composerOpen, setComposerOpen] = useState(false);
+  const composerOpenRef = useRef(false);
+  const historyEntryRef = useRef(false);
+  const closingComposerRef = useRef(false);
+
+  const closeComposer = useCallback(() => {
+    if (!composerOpenRef.current) return;
+
+    composerOpenRef.current = false;
+    setComposerOpen(false);
+
+    if (historyEntryRef.current) {
+      historyEntryRef.current = false;
+      closingComposerRef.current = true;
+      window.history.back();
+    }
+  }, []);
+
+  const openComposer = useCallback(() => {
+    if (composerOpenRef.current) return;
+
+    composerOpenRef.current = true;
+    historyEntryRef.current = true;
+    window.history.pushState({ lineLetterComposer: true }, '', window.location.href);
+    setComposerOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (closingComposerRef.current) {
+        closingComposerRef.current = false;
+        return;
+      }
+
+      if (!composerOpenRef.current) return;
+
+      // Keep the full-screen composer in place when the browser back button
+      // is pressed. The close control is the explicit way to leave the flow.
+      window.history.pushState({ lineLetterComposer: true }, '', window.location.href);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   return (
     <main className="line-shell line-mobile-frame" data-testid="screen-app-shell">
-      <div className="line-shell-content" key={activeView}>
-        <AppViewContent activeView={activeView} location={location} />
-      </div>
-      <BottomNav activeView={activeView} onChange={setActiveView} />
+      {composerOpen ? (
+        <LetterComposer location={location} onClose={closeComposer} />
+      ) : (
+        <>
+          <div className="line-shell-content" key={activeView}>
+            <AppViewContent
+              activeView={activeView}
+              location={location}
+              onDropLetter={openComposer}
+            />
+          </div>
+          <BottomNav activeView={activeView} onChange={setActiveView} />
+        </>
+      )}
     </main>
   );
 }

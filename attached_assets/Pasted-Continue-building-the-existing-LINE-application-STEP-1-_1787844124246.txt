@@ -1,0 +1,462 @@
+Continue building the existing LINE application.
+
+STEP 1 and STEP 2 are already completed.
+
+For STEP 3, build the Create Letter experience.
+
+This is the first actual core interaction of LINE.
+
+Do not rebuild the application from scratch. Preserve the existing design system, navigation, animations, location foundation, and mobile-first experience.
+
+OBJECTIVE
+
+Allow a user to write an anonymous letter and prepare it to be dropped at their current physical location.
+
+For this step:
+
+* The user can write a letter.
+* The app can obtain their current location.
+* The user can preview the letter.
+* The user can confirm the drop.
+* The letter should be stored temporarily as local/mock data.
+
+Do NOT create a backend or database yet.
+
+Do NOT make letters discoverable by other users yet.
+
+Do NOT build AR yet.
+
+⸻
+
+1. ADD “DROP A LETTER”
+
+On the DISCOVER screen, add a prominent but minimal action:
+
+“DROP A LETTER”
+
+This should feel like the primary creation action.
+
+Use an appropriate icon, but keep the interface minimal.
+
+When tapped, open the letter creation experience.
+
+⸻
+
+2. LETTER CREATION SCREEN
+
+Create a dedicated screen/modal for writing a letter.
+
+At the top:
+
+“LEAVE SOMETHING BEHIND”
+
+Subheading:
+
+“Write something. Leave it somewhere.”
+
+Then provide a large text input.
+
+Placeholder:
+
+“Dear stranger…”
+
+The text area should feel like writing on a digital piece of paper rather than filling out a generic social-media form.
+
+⸻
+
+3. LETTER CHARACTER LIMIT
+
+Limit the letter to:
+
+500 characters.
+
+Display a subtle counter:
+
+0 / 500
+
+Update it live while the user types.
+
+Do not allow the user to exceed the maximum.
+
+⸻
+
+4. ANONYMOUS BY DEFAULT
+
+The letter must clearly communicate that it is anonymous.
+
+Display:
+
+“ANONYMOUS”
+
+“Your identity won’t be shown with this letter.”
+
+This should be reassuring rather than technical.
+
+Do not ask the user for their name.
+
+Do not create authentication.
+
+⸻
+
+5. OPTIONAL LETTER SETTINGS
+
+Add a small expandable section:
+
+“LETTER SETTINGS”
+
+For this step, provide:
+
+Visibility
+
+“Anyone nearby”
+
+This should be selected by default.
+
+You may visually show future options as disabled if useful, but do not implement them yet.
+
+For example:
+
+“Specific people — coming later”
+
+Do not overcomplicate the first version.
+
+⸻
+
+6. LOCATION
+
+Because STEP 2 already established the location system, the letter should use the user’s current location.
+
+Display something like:
+
+“DROP LOCATION”
+
+“Your current location”
+
+“Location accuracy: approximately XXm”
+
+Do NOT display raw latitude/longitude.
+
+If location is unavailable:
+
+Do not allow the letter to be dropped.
+
+Instead explain:
+
+“LINE needs your location before you can leave a letter.”
+
+Provide:
+
+“ENABLE LOCATION”
+
+or
+
+“TRY AGAIN”
+
+using the existing location system.
+
+Do not create a second location implementation.
+
+Reuse the location hook/service created in STEP 2.
+
+⸻
+
+7. PREVIEW
+
+Before the final drop, provide a preview screen.
+
+Display the letter as a beautiful physical-looking digital note.
+
+For example:
+
+⸻
+
+ANONYMOUS
+
+Dear stranger,
+
+[letter text]
+
+— someone who was here
+
+⸻
+
+Do not automatically add a romantic signature to every letter.
+
+The “someone who was here” concept is only a visual representation and should not be treated as actual letter content.
+
+The preview should feel intimate and physical.
+
+⸻
+
+8. CONFIRM DROP
+
+At the bottom of the preview:
+
+“DROP HERE”
+
+When pressed, show a confirmation state.
+
+Example:
+
+“LETTER LEFT.”
+
+“Someone nearby may find it.”
+
+Then display:
+
+“Your letter is now tied to this place.”
+
+Do not claim that another user can actually see it yet.
+
+Clearly remember that this is still a local prototype.
+
+⸻
+
+9. LOCAL STORAGE
+
+For this step, use browser localStorage to persist the created letters.
+
+Do not create a backend.
+
+Each letter should contain at least:
+
+* id
+* text
+* createdAt
+* latitude
+* longitude
+* accuracy
+* visibility
+* anonymous
+* status
+
+Example status:
+
+“dropped”
+
+Create a clean TypeScript type/interface for the Letter object.
+
+Keep local-storage functionality in a dedicated utility/service rather than putting it directly inside the UI components.
+
+⸻
+
+10. MY LETTERS
+
+Add a way for the user to see letters they have created.
+
+Inside PROFILE, add:
+
+“MY LETTERS”
+
+When opened, show the user’s locally stored letters.
+
+Each card should show:
+
+* a short preview
+* date/time
+* approximate location status
+* status: DROPPED
+
+Do not display raw coordinates.
+
+If there are no letters:
+
+“You haven’t left anything behind yet.”
+
+“Maybe it’s time.”
+
+⸻
+
+11. LETTER CARD DESIGN
+
+Letter cards should NOT look like normal social-media posts.
+
+Use the visual language of:
+
+* notes
+* letters
+* paper
+* physical objects
+* subtle shadows
+* thin borders
+
+Maintain the overall dark/cinematic LINE design.
+
+⸻
+
+12. EMPTY STATE
+
+If the user has never created a letter, the DISCOVER screen can contain:
+
+“Nothing here yet.”
+
+Then:
+
+“Leave something behind.”
+
+with:
+
+“DROP A LETTER”
+
+This should encourage the first action.
+
+⸻
+
+13. VALIDATION
+
+Do not allow an empty letter to be dropped.
+
+If the user tries:
+
+“Your letter is empty.”
+
+If the text contains only spaces, treat it as empty.
+
+The drop button should remain disabled until valid content exists.
+
+⸻
+
+14. NAVIGATION
+
+The user should be able to:
+
+DISCOVER
+→ DROP A LETTER
+→ WRITE
+→ PREVIEW
+→ DROP
+→ CONFIRMATION
+→ return to DISCOVER
+
+The browser back button should not produce a broken state.
+
+⸻
+
+15. IMPORTANT PRODUCT DETAIL
+
+Do NOT automatically reveal the user’s identity anywhere.
+
+There is no username.
+
+There is no profile attached to the letter.
+
+There is no public identity.
+
+The entire concept of LINE depends on anonymity.
+
+⸻
+
+16. DO NOT IMPLEMENT THESE YET
+
+Do NOT build:
+
+* real multi-user letter sharing
+* backend database
+* authentication
+* user accounts
+* real-time synchronization
+* nearby letter discovery
+* distance calculations between users
+* letter unlocking
+* replies
+* identity reveal
+* notifications
+* camera
+* AR
+* REDLINE
+* payments
+* subscriptions
+
+Those are future steps.
+
+⸻
+
+17. IMPORTANT FUTURE COMPATIBILITY
+
+Design the Letter data model and components so that later we can replace localStorage with a real backend without rewriting the entire UI.
+
+Keep:
+
+* Letter type
+* Letter storage service
+* Letter creation UI
+* Letter preview UI
+* Letter card UI
+
+separate.
+
+⸻
+
+18. TESTING
+
+After implementation, test:
+
+Test 1
+
+Open LINE.
+
+Test 2
+
+Go to DISCOVER.
+
+Test 3
+
+Tap DROP A LETTER.
+
+Test 4
+
+Write a short letter.
+
+Test 5
+
+Verify character counter.
+
+Test 6
+
+Verify empty letters cannot be submitted.
+
+Test 7
+
+Verify current location is displayed using the STEP 2 location system.
+
+Test 8
+
+Preview the letter.
+
+Test 9
+
+Drop the letter.
+
+Test 10
+
+Refresh the page.
+
+Verify the letter still exists because it was stored in localStorage.
+
+Test 11
+
+Open PROFILE → MY LETTERS.
+
+Verify the created letter appears.
+
+Test 12
+
+Create multiple letters and verify they are all displayed separately.
+
+⸻
+
+19. FINAL REPORT
+
+When finished, report:
+
+1. What you implemented.
+2. Files/components created or modified.
+3. How letters are stored.
+4. What data a Letter contains.
+5. How the location system is reused.
+6. What I should manually test.
+7. Any known limitations.
+
+Then STOP.
+
+Do not proceed to STEP 4 automatically.

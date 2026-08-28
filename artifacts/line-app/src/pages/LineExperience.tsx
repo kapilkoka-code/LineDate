@@ -1,5 +1,6 @@
 import { ArrowUpRight, ChevronRight, FileText, LockKeyhole, PenLine, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useAuth } from '@workspace/replit-auth-web';
 import { BottomNav, type AppView } from '@/components/line/BottomNav';
 import { DiscoveryField } from '@/components/line/DiscoveryField';
 import { LineMark } from '@/components/line/LineMark';
@@ -15,25 +16,17 @@ import {
 } from '@/services/discovery';
 import {
   getOrCreateLocalUser,
-  updateLocalDisplayName,
   type LocalUser,
 } from '@/services/identity';
 import { loadLetters, type Letter } from '@/services/letters';
-import { loadReplies, setReplyIdentityRevealed, type LetterReply } from '@/services/replies';
+import { type LetterReply } from '@/services/replies';
+import { api } from '@/services/api';
 
 const profileRows = ['Privacy', 'Notifications', 'Location', 'Safety', 'Account'];
 
-function OpeningScreen({ onEnter }: { onEnter: () => void }) {
-  const [leaving, setLeaving] = useState(false);
-
-  const enterLine = () => {
-    if (leaving) return;
-    setLeaving(true);
-    window.setTimeout(onEnter, 360);
-  };
-
+function OpeningScreen({ onSignIn }: { onSignIn: () => void }) {
   return (
-    <main className={`line-opening line-mobile-frame ${leaving ? 'line-screen-exit' : ''}`} data-testid="screen-opening">
+    <main className="line-opening line-mobile-frame" data-testid="screen-opening">
       <div className="line-opening-vert" aria-hidden="true" />
       <div className="line-opening-topline line-mono line-reveal">
         <span>PRIVATE SIGNAL / 001</span>
@@ -52,14 +45,14 @@ function OpeningScreen({ onEnter }: { onEnter: () => void }) {
         <p className="line-opening-description line-reveal-late">
           Letters, places and people —<br />connected in the real world.
         </p>
-        <button type="button" className="line-enter-button line-reveal-late" onClick={enterLine} disabled={leaving} data-testid="button-enter-line">
-          <span>{leaving ? 'Opening signal' : 'Enter LINE'}</span>
+        <button type="button" className="line-enter-button line-reveal-late" onClick={onSignIn} data-testid="button-enter-line">
+          <span>Sign in to LINE</span>
           <ArrowUpRight size={18} strokeWidth={1.5} />
         </button>
       </div>
       <div className="line-opening-footer line-mono line-reveal-late">
         <span className="line-status"><span className="line-status-dot" />Signal is quiet</span>
-        <span>Scroll to enter</span>
+        <span>Sign in to enter</span>
       </div>
     </main>
   );
@@ -70,7 +63,12 @@ function DiscoverView({ location, onDropLetter }: { location: LocationState; onD
   const [storedLetters, setStoredLetters] = useState<Letter[]>([]);
 
   useEffect(() => {
-    setStoredLetters(loadLetters());
+    if (!location.location) return;
+    void api.nearby(location.location)
+      .then((letters) => setStoredLetters(letters.map((letter) => ({
+        ...letter, text: letter.text ?? '', writerId: '', writerDisplayName: 'Anonymous User',
+      }))))
+      .catch(() => setStoredLetters([]));
   }, [location.location]);
 
   const nearbyLetters = useMemo(
@@ -237,9 +235,9 @@ function RepliesView({
           <ChevronRight size={14} strokeWidth={1.4} />
           My letters
         </button>
-        <span className="line-section-index line-mono">INBOX / LOCAL PROTOTYPE</span>
+        <span className="line-section-index line-mono">INBOX / PRIVATE SIGNAL</span>
         <h1 className="line-replies-title line-serif">What came<br /><em>back.</em></h1>
-        <p>Replies to this letter stay here for now.</p>
+        <p>Replies remain private between you and the sender.</p>
       </div>
 
       <div className="line-replies-source">
@@ -325,9 +323,10 @@ function RepliesView({
                           type="button"
                           className="line-mono line-reveal-confirm"
                           onClick={() => {
-                            const updatedReplies = setReplyIdentityRevealed(reply.id, true);
-                            if (updatedReplies.length > 0) onRepliesUpdated(updatedReplies);
-                            setRevealingReplyId(null);
+                            if (!location.location) return;
+                            void api.reveal(letter.id, reply.senderUserId, location.location)
+                              .then(() => onRepliesUpdated([{ ...reply, identityRevealed: true }]))
+                              .finally(() => setRevealingReplyId(null));
                           }}
                           data-testid={`button-confirm-reveal-${reply.id}`}
                         >
@@ -352,7 +351,7 @@ function RepliesView({
 
       <div className="line-replies-local-note">
         <ShieldCheck size={15} strokeWidth={1.3} />
-        <span className="line-mono">LOCAL ONLY / REMOTE DELIVERY IS NOT ENABLED</span>
+        <span className="line-mono">PRIVATE DELIVERY / PHYSICAL ACCESS REQUIRED</span>
       </div>
     </div>
   );
@@ -389,7 +388,7 @@ function MyLetters({
         >
           <div className="line-my-letter-card-topline line-mono">
             <span>ANONYMOUS</span>
-            <span>{replies.filter((reply) => reply.letterId === letter.id).length > 0 ? 'SOMEONE REPLIED' : 'NO REPLIES YET'}</span>
+            <span>{(letter.replyCount ?? replies.filter((reply) => reply.letterId === letter.id).length) > 0 ? 'SOMEONE REPLIED' : 'NO REPLIES YET'}</span>
           </div>
           <p>{letter.text}</p>
           <div className="line-my-letter-meta line-mono">
@@ -397,7 +396,7 @@ function MyLetters({
             <span>LOCATION ACTIVE / ~{Math.max(1, Math.round(letter.accuracy))}m</span>
           </div>
           <span className="line-my-letter-action line-mono">
-            {replies.some((reply) => reply.letterId === letter.id) ? 'VIEW REPLIES' : 'OPEN LETTER'}
+            {(letter.replyCount ?? replies.filter((reply) => reply.letterId === letter.id).length) > 0 ? 'VIEW REPLIES' : 'OPEN LETTER'}
             <ChevronRight size={13} strokeWidth={1.4} />
           </span>
         </button>
@@ -407,22 +406,13 @@ function MyLetters({
 }
 
 function MyReplies({
-  letters,
   replies,
   location,
 }: {
-  letters: Letter[];
   replies: LetterReply[];
   location: LocationState;
 }) {
-  const replyEntries = replies
-    .map((reply) => ({
-      reply,
-      letter: letters.find((letter) => letter.id === reply.letterId) ?? null,
-    }))
-    .filter((entry): entry is { reply: LetterReply; letter: Letter } => entry.letter !== null);
-
-  if (replyEntries.length === 0) {
+  if (replies.length === 0) {
     return (
       <div className="line-my-letters-empty line-view-enter" data-testid="panel-my-replies-empty">
         <FileText size={18} strokeWidth={1.2} />
@@ -435,14 +425,14 @@ function MyReplies({
   return (
     <div className="line-my-replies line-view-enter" data-testid="panel-my-replies">
       <div className="line-my-replies-header">
-        <span className="line-mono">SENT REPLIES / LOCAL</span>
+        <span className="line-mono">SENT REPLIES / PRIVATE</span>
         <button type="button" className="line-replies-refresh line-mono" onClick={location.requestLocation} disabled={location.loading} data-testid="button-refresh-my-replies">
           <RefreshCw size={13} strokeWidth={1.4} className={location.loading ? 'line-refresh-spinning' : ''} />
           Refresh proximity
         </button>
       </div>
-      {replyEntries.map(({ reply, letter }) => {
-        const withinRange = isLetterWithinUnlockRange(location.location, letter);
+      {replies.map((reply) => {
+        const withinRange = reply.withinRange === true;
         return (
           <article className="line-my-reply-card" key={reply.id} data-testid={`card-my-sent-reply-${reply.id}`}>
             <div className="line-my-letter-card-topline line-mono">
@@ -485,7 +475,11 @@ function MyReplies({
 }
 
 function ProfileView({ location }: { location: LocationState }) {
-  const [localUser, setLocalUser] = useState<LocalUser>(() => getOrCreateLocalUser());
+  const [localUser, setLocalUser] = useState<LocalUser>(() => ({
+    id: 'LINE-••••••',
+    displayName: 'Private signal',
+    createdAt: new Date().toISOString(),
+  }));
   const [displayNameDraft, setDisplayNameDraft] = useState(localUser.displayName);
   const [displayNameSaved, setDisplayNameSaved] = useState(false);
   const [activeRow, setActiveRow] = useState<string | null>(null);
@@ -496,22 +490,41 @@ function ProfileView({ location }: { location: LocationState }) {
   const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (showMyLetters || showMyReplies) {
-      setLetters(loadLetters());
-      setReplies(loadReplies());
-    }
-  }, [showMyLetters, showMyReplies]);
+    void api.profile().then((profile) => {
+      setLocalUser(profile);
+      setDisplayNameDraft(profile.displayName);
+    }).catch(() => undefined);
+  }, []);
 
-  const saveDisplayName = (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    if (showMyLetters) {
+      void api.myLetters().then((records) => setLetters(records.map((letter) => ({
+        ...letter, text: letter.text ?? '', writerId: localUser.id, writerDisplayName: localUser.displayName,
+      })))).catch(() => setLetters([]));
+    }
+    if (showMyReplies) {
+      void api.myReplies(location.location ?? undefined).then((records) => setReplies(records.map((reply) => ({
+        ...reply, senderId: '', senderDisplayName: '', senderUserId: localUser.id,
+        letterWriterId: reply.writerLineId ?? '', letterWriterDisplayName: reply.writerDisplayName ?? 'Anonymous User',
+        withinRange: reply.withinRange,
+      })))).catch(() => setReplies([]));
+    }
+  }, [showMyLetters, showMyReplies, location.location, localUser.displayName, localUser.id]);
+
+  const saveDisplayName = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const updatedUser = updateLocalDisplayName(displayNameDraft);
-    setLocalUser(updatedUser);
-    setDisplayNameDraft(updatedUser.displayName);
-    setDisplayNameSaved(true);
+    try {
+      const updatedUser = await api.updateProfile(displayNameDraft);
+      setLocalUser(updatedUser);
+      setDisplayNameDraft(updatedUser.displayName);
+      setDisplayNameSaved(true);
+    } catch {
+      setDisplayNameSaved(false);
+    }
   };
 
-  const ownedLetters = letters.filter((letter) => letter.writerId === localUser.id);
-  const sentReplies = replies.filter((reply) => reply.senderUserId === localUser.id);
+  const ownedLetters = letters;
+  const sentReplies = replies;
   const selectedLetter = ownedLetters.find((letter) => letter.id === selectedLetterId) ?? null;
   const selectedLetterReplies = selectedLetter
     ? replies.filter((reply) => reply.letterId === selectedLetter.id)
@@ -519,6 +532,19 @@ function ProfileView({ location }: { location: LocationState }) {
   const selectedLetterIsWithinRange = selectedLetter
     ? isLetterWithinUnlockRange(location.location, selectedLetter)
     : false;
+
+  useEffect(() => {
+    if (!selectedLetter || !location.location) return;
+    void api.repliesForLetter(selectedLetter.id, location.location).then((records) => {
+      setReplies((current) => [
+        ...current.filter((reply) => reply.letterId !== selectedLetter.id),
+        ...records.map((reply) => ({
+          ...reply, senderId: reply.senderLineId, senderUserId: reply.senderUserId,
+          letterWriterId: localUser.id, letterWriterDisplayName: localUser.displayName,
+        })),
+      ]);
+    }).catch(() => undefined);
+  }, [selectedLetter?.id, location.location, localUser.id, localUser.displayName]);
 
   return (
     <div className="line-view line-profile-view">
@@ -549,7 +575,7 @@ function ProfileView({ location }: { location: LocationState }) {
           </div>
           <section className="line-profile-identity" data-testid="panel-local-identity">
             <div className="line-profile-identity-topline line-mono">
-              <span>LOCAL IDENTITY</span>
+              <span>LINE IDENTITY</span>
               <span>CREATED {formatReplyDate(localUser.createdAt)}</span>
             </div>
             <strong className="line-mono" data-testid="text-local-user-id">{localUser.id}</strong>
@@ -573,8 +599,8 @@ function ProfileView({ location }: { location: LocationState }) {
               </div>
             </form>
             <div className="line-profile-identity-note">
-              <span>{displayNameSaved ? 'DISPLAY NAME SAVED LOCALLY' : 'NO REAL NAME REQUIRED'}</span>
-              <span>PRIVATE / THIS DEVICE</span>
+              <span>{displayNameSaved ? 'DISPLAY NAME SAVED' : 'NO REAL NAME REQUIRED'}</span>
+              <span>PRIVATE / YOUR ACCOUNT</span>
             </div>
           </section>
           <button
@@ -610,7 +636,7 @@ function ProfileView({ location }: { location: LocationState }) {
             </span>
             <ChevronRight size={17} strokeWidth={1.3} />
           </button>
-          {showMyReplies && <MyReplies letters={letters} replies={sentReplies} location={location} />}
+          {showMyReplies && <MyReplies replies={sentReplies} location={location} />}
           <div className="line-profile-list" aria-label="Profile settings">
             {profileRows.map((row, index) => (
               <button
@@ -661,10 +687,6 @@ function AppShell() {
   const composerOpenRef = useRef(false);
   const historyEntryRef = useRef(false);
   const closingComposerRef = useRef(false);
-
-  useEffect(() => {
-    getOrCreateLocalUser();
-  }, []);
 
   const closeComposer = useCallback(() => {
     if (!composerOpenRef.current) return;
@@ -727,12 +749,45 @@ function AppShell() {
 }
 
 export default function LineExperience() {
-  const [entered, setEntered] = useState(false);
+  const { isLoading, isAuthenticated, login } = useAuth();
+
+  useEffect(() => {
+    if (!isAuthenticated || typeof window === 'undefined') return;
+    const completedKey = 'line:legacy-migration-complete';
+    if (window.localStorage.getItem(completedKey)) return;
+    try {
+      const user = getOrCreateLocalUser();
+      const letters = loadLetters().filter((letter) => letter.isOwn !== false).slice(0, 100);
+      if (letters.length === 0) {
+        window.localStorage.setItem(completedKey, 'true');
+        return;
+      }
+      void api.migrate({
+        localUserId: user.id,
+        displayName: user.displayName,
+        letters: letters.map(({ id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status }) => ({
+          id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status,
+        })),
+      }).then(() => {
+        // Do not delete local data: completion is recorded only after the
+        // server has accepted it, allowing a safe retry on any failure.
+        window.localStorage.setItem(completedKey, 'true');
+      }).catch(() => undefined);
+    } catch {
+      // Storage may be unavailable; leave migration pending rather than lose it.
+    }
+  }, [isAuthenticated]);
 
   return (
     <div className="line-app">
       <div className="line-grain" aria-hidden="true" />
-      {entered ? <AppShell /> : <OpeningScreen onEnter={() => setEntered(true)} />}
+      {isLoading ? (
+        <main className="line-opening line-mobile-frame"><div className="line-opening-content"><p className="line-serif">Finding your signal…</p></div></main>
+      ) : isAuthenticated ? (
+        <AppShell />
+      ) : (
+        <OpeningScreen onSignIn={login} />
+      )}
     </div>
   );
 }

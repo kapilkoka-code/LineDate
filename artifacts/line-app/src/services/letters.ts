@@ -13,6 +13,8 @@ export type Letter = {
   writerId: string;
   writerDisplayName: string;
   isOwn?: boolean;
+  isUnlocked?: boolean;
+  replyCount?: number;
   visibility: LetterVisibility;
   anonymous: true;
   status: LetterStatus;

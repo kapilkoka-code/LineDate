@@ -14,6 +14,7 @@ export type LetterReply = {
   letterWriterId: string;
   letterWriterDisplayName: string;
   identityRevealed: boolean;
+  withinRange?: boolean;
   status: ReplyStatus;
 };
 

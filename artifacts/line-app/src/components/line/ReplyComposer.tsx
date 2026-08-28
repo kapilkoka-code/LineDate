@@ -7,8 +7,8 @@ import {
   UNLOCK_DISTANCE_METERS,
   type NearbyLetter,
 } from '@/services/discovery';
-import { getOrCreateLocalUser } from '@/services/identity';
-import { createReplyId, getLocalSenderId, saveReply } from '@/services/replies';
+import { api } from '@/services/api';
+import { createReplyId } from '@/services/replies';
 
 type ReplyComposerProps = {
   letter: NearbyLetter;
@@ -39,8 +39,6 @@ export function ReplyComposer({
   const [proximityError, setProximityError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [localUser] = useState(() => getOrCreateLocalUser());
-  const [senderId] = useState(() => getLocalSenderId());
 
   const distance = currentLocation
     ? distanceBetweenLocations(currentLocation, letter.letter)
@@ -60,7 +58,7 @@ export function ReplyComposer({
     setStage('preview');
   };
 
-  const sendReply = () => {
+  const sendReply = async () => {
     setProximityError(null);
     setSaveError(null);
 
@@ -71,22 +69,17 @@ export function ReplyComposer({
 
     setSaving(true);
     try {
-      saveReply({
+      await api.createReply(letter.id, {
         id: createReplyId(),
-        letterId: letter.id,
         text: trimmedText,
-        createdAt: new Date().toISOString(),
-        senderId,
-        senderDisplayName: localUser.displayName,
-        senderUserId: localUser.id,
-        letterWriterId: letter.letter.writerId,
-        letterWriterDisplayName: letter.letter.writerDisplayName,
-        identityRevealed: false,
         status: 'sent',
+        latitude: currentLocation!.latitude,
+        longitude: currentLocation!.longitude,
+        accuracy: currentLocation!.accuracy,
       });
       setStage('complete');
-    } catch {
-      setSaveError('LINE couldn’t save this reply on your device. Please try again.');
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'LINE couldn’t send this reply. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -106,13 +99,13 @@ export function ReplyComposer({
           <div className="line-letter-complete-mark" aria-hidden="true">
             <Check size={28} strokeWidth={1.2} />
           </div>
-          <span className="line-section-index line-mono">SIGNAL SENT / LOCAL</span>
+              <span className="line-section-index line-mono">SIGNAL SENT / DELIVERED</span>
           <h1 className="line-letter-complete-title line-serif">REPLY SENT.</h1>
           <p className="line-letter-complete-lead">Your reply has been left for them.</p>
-          <p className="line-letter-complete-detail">It hasn’t been delivered yet.</p>
+              <p className="line-letter-complete-detail">It is now waiting at this place.</p>
           <div className="line-letter-local-note">
             <ShieldAlert size={15} strokeWidth={1.3} />
-            <span className="line-mono">LOCAL PROTOTYPE / NOT DELIVERED</span>
+             <span className="line-mono">DELIVERED / WRITER CAN DISCOVER IT</span>
           </div>
           <button type="button" className="line-letter-return line-mono" onClick={onClose} data-testid="button-return-after-reply">
             Return to the letter
@@ -156,8 +149,8 @@ export function ReplyComposer({
                 <span className="line-reply-identity-mark line-mono">ID</span>
                 <div>
                   <span className="line-mono">TEMPORARY SENDER ID</span>
-                  <strong className="line-mono">{senderId}</strong>
-                  <p>The writer will eventually see this private ID, not your name.</p>
+                  <strong className="line-mono">PRIVATE</strong>
+                  <p>The writer sees your private LINE ID, not your name.</p>
                 </div>
               </div>
               {showEmptyError && <p className="line-letter-form-error" role="alert">Your reply is empty.</p>}
@@ -171,7 +164,7 @@ export function ReplyComposer({
               <article className="line-reply-note-card" data-testid="card-reply-preview">
                 <div className="line-letter-note-topline line-mono">
                   <span>REPLY / PRIVATE</span>
-                  <span>{senderId}</span>
+                   <span>PRIVATE</span>
                 </div>
                 <div className="line-letter-note-rule" />
                 <p>{text}</p>

@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { LocationState } from '@/hooks/useLocation';
-import { getOrCreateLocalUser } from '@/services/identity';
-import { createLetterId, saveLetter, type Letter } from '@/services/letters';
+import { api } from '@/services/api';
+import { createLetterId } from '@/services/letters';
 
 type LetterComposerProps = {
   location: LocationState;
@@ -109,7 +109,7 @@ function CompleteState({ onClose }: { onClose: () => void }) {
       <p className="line-letter-complete-detail">Your letter is now tied to this place.</p>
       <div className="line-letter-local-note">
         <ShieldCheck size={15} strokeWidth={1.3} />
-        <span className="line-mono">LOCAL PROTOTYPE / NOT DISCOVERABLE YET</span>
+        <span className="line-mono">DELIVERED / DISCOVERABLE WITHIN 100M</span>
       </div>
       <button type="button" className="line-letter-return line-mono" onClick={onClose} data-testid="button-return-discover">
         Return to Discover
@@ -142,32 +142,26 @@ export function LetterComposer({ location, onClose }: LetterComposerProps) {
     setStage('preview');
   };
 
-  const dropLetter = () => {
+  const dropLetter = async () => {
     if (!canDrop || !location.location) return;
 
     setSaving(true);
     setSaveError(null);
 
-    const letter: Letter = {
-      id: createLetterId(),
-      text: trimmedText,
-      createdAt: new Date().toISOString(),
-      latitude: location.location.latitude,
-      longitude: location.location.longitude,
-      accuracy: location.location.accuracy,
-      writerId: getOrCreateLocalUser().id,
-      writerDisplayName: getOrCreateLocalUser().displayName,
-      isOwn: true,
-      visibility: 'nearby',
-      anonymous: true,
-      status: 'dropped',
-    };
-
     try {
-      saveLetter(letter);
+      await api.createLetter({
+        id: createLetterId(),
+        text: trimmedText,
+        latitude: location.location.latitude,
+        longitude: location.location.longitude,
+        accuracy: location.location.accuracy,
+        visibility: 'nearby',
+        anonymous: true,
+        status: 'dropped',
+      });
       setStage('complete');
-    } catch {
-      setSaveError('LINE couldn’t save this letter on your device. Please try again.');
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'LINE couldn’t leave this letter. Please try again.');
     } finally {
       setSaving(false);
     }

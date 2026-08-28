@@ -77,7 +77,9 @@ export function getNearbyLetters(
         letter,
         distanceMeters,
         distanceLabel: formatDistance(distanceMeters),
-        isUnlocked: isLetterWithinUnlockRange(currentLocation, letter),
+        // The server is authoritative for access; the local calculation is only
+        // retained for distance presentation and legacy records.
+        isUnlocked: letter.isUnlocked ?? isLetterWithinUnlockRange(currentLocation, letter),
         ...marker,
       };
     });

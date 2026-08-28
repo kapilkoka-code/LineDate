@@ -1,22 +1,20 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 0.2.0
+  description: LINE authenticated API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: Auth
+  - name: LINE
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
-      summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +22,443 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/user:
+    get:
+      operationId: getCurrentAuthUser
+      tags: [Auth]
+      responses:
+        "200":
+          description: Current browser authentication state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserEnvelope"
+  /login:
+    get:
+      operationId: beginBrowserLogin
+      tags: [Auth]
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "302": { description: Redirect to account login }
+  /callback:
+    get:
+      operationId: handleBrowserLoginCallback
+      tags: [Auth]
+      responses:
+        "302": { description: Complete login and redirect }
+  /logout:
+    get:
+      operationId: logoutBrowserSession
+      tags: [Auth]
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "302": { description: Clear session and redirect }
+  /profile:
+    get:
+      operationId: getLineProfile
+      tags: [LINE]
+      responses:
+        "200":
+          description: Authenticated LINE profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LineProfile" }
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    patch:
+      operationId: updateLineProfile
+      tags: [LINE]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProfileRequest" }
+      responses:
+        "200":
+          description: Updated LINE profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LineProfile" }
+        "400":
+          description: Invalid display name
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /letters:
+    post:
+      operationId: createLineLetter
+      tags: [LINE]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateLetterRequest" }
+      responses:
+        "201":
+          description: Letter dropped
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LetterRecord" }
+        "400":
+          description: Invalid letter
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /letters/nearby:
+    get:
+      operationId: getNearbyLineLetters
+      tags: [LINE]
+      parameters:
+        - { name: latitude, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: longitude, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+        - { name: radius, in: query, required: false, schema: { type: number, minimum: 1, maximum: 100, default: 100 } }
+      responses:
+        "200":
+          description: Anonymous nearby letter summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NearbyLetterRecord" }
+        "400":
+          description: Invalid location
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /letters/mine:
+    get:
+      operationId: getMyLineLetters
+      tags: [LINE]
+      responses:
+        "200":
+          description: Current user's letters
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OwnedLetterRecord" }
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /letters/{letterId}:
+    get:
+      operationId: getLineLetter
+      tags: [LINE]
+      parameters:
+        - $ref: "#/components/parameters/LetterId"
+        - { name: latitude, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: longitude, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+      responses:
+        "200":
+          description: Letter with text only when physically unlocked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NearbyLetterRecord" }
+        "403":
+          description: Letter remains locked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "404":
+          description: Letter not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /letters/{letterId}/replies:
+    get:
+      operationId: getRepliesForLetter
+      tags: [LINE]
+      parameters:
+        - $ref: "#/components/parameters/LetterId"
+        - { name: latitude, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: longitude, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+      responses:
+        "200":
+          description: Replies visible to the letter owner within 10m
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WriterReplyRecord" }
+        "403":
+          description: Ownership or proximity denied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    post:
+      operationId: createLineReply
+      tags: [LINE]
+      parameters:
+        - $ref: "#/components/parameters/LetterId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateReplyRequest" }
+      responses:
+        "201":
+          description: Reply sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SentReplyRecord" }
+        "400":
+          description: Invalid reply
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "403":
+          description: Proximity or ownership denied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /replies/mine:
+    get:
+      operationId: getMyLineReplies
+      tags: [LINE]
+      parameters:
+        - { name: latitude, in: query, required: false, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: longitude, in: query, required: false, schema: { type: number, minimum: -180, maximum: 180 } }
+      responses:
+        "200":
+          description: Replies sent by the current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SentReplyRecord" }
+  /letters/{letterId}/relationships/{senderUserId}/reveal:
+    post:
+      operationId: revealLineIdentity
+      tags: [LINE]
+      parameters:
+        - $ref: "#/components/parameters/LetterId"
+        - name: senderUserId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LocationRequest" }
+      responses:
+        "200":
+          description: Relationship reveal persisted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IdentityRelationshipRecord" }
+        "403":
+          description: Ownership or proximity denied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /migration/local:
+    post:
+      operationId: migrateLocalLineData
+      tags: [LINE]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LocalMigrationRequest" }
+      responses:
+        "200":
+          description: Safe local data migration result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LocalMigrationResult" }
 components:
+  parameters:
+    LetterId:
+      name: letterId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
-        status:
-          type: string
-      required:
-        - status
-
+        status: { type: string }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id: { type: string }
+        email: { type: [string, "null"], format: email }
+        firstName: { type: [string, "null"] }
+        lastName: { type: [string, "null"] }
+        profileImageUrl: { type: [string, "null"] }
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+    LineProfile:
+      type: object
+      required: [id, displayName, createdAt]
+      properties:
+        id: { type: string }
+        displayName: { type: string }
+        createdAt: { type: string, format: date-time }
+    UpdateProfileRequest:
+      type: object
+      required: [displayName]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 40 }
+    LocationRequest:
+      type: object
+      required: [latitude, longitude, accuracy]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        accuracy: { type: number, minimum: 0 }
+    CreateLetterRequest:
+      allOf:
+        - $ref: "#/components/schemas/LocationRequest"
+        - type: object
+          required: [id, text, visibility, anonymous, status]
+          properties:
+            id: { type: string, minLength: 1, maxLength: 128 }
+            text: { type: string, minLength: 1, maxLength: 500 }
+            visibility: { type: string, enum: [nearby] }
+            anonymous: { type: boolean, const: true }
+            status: { type: string, enum: [dropped] }
+    LetterRecord:
+      type: object
+      required: [id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status, isOwn]
+      properties:
+        id: { type: string }
+        text: { type: string }
+        createdAt: { type: string, format: date-time }
+        latitude: { type: number }
+        longitude: { type: number }
+        accuracy: { type: number }
+        visibility: { type: string, enum: [nearby] }
+        anonymous: { type: boolean, const: true }
+        status: { type: string, enum: [dropped] }
+        isOwn: { type: boolean }
+    NearbyLetterRecord:
+      type: object
+      required: [id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status, isOwn, isUnlocked]
+      properties:
+        id: { type: string }
+        text: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }
+        latitude: { type: number }
+        longitude: { type: number }
+        accuracy: { type: number }
+        visibility: { type: string, enum: [nearby] }
+        anonymous: { type: boolean, const: true }
+        status: { type: string, enum: [dropped] }
+        isOwn: { type: boolean }
+        isUnlocked: { type: boolean }
+    OwnedLetterRecord:
+      allOf:
+        - $ref: "#/components/schemas/LetterRecord"
+        - type: object
+          required: [replyCount]
+          properties:
+            replyCount: { type: integer, minimum: 0 }
+    CreateReplyRequest:
+      allOf:
+        - $ref: "#/components/schemas/LocationRequest"
+        - type: object
+          required: [id, text, status]
+          properties:
+            id: { type: string, minLength: 1, maxLength: 128 }
+            text: { type: string, minLength: 1, maxLength: 500 }
+            status: { type: string, enum: [sent] }
+    WriterReplyRecord:
+      type: object
+      required: [id, letterId, text, createdAt, status, senderUserId, senderLineId, senderDisplayName, identityRevealed]
+      properties:
+        id: { type: string }
+        letterId: { type: string }
+        text: { type: string }
+        createdAt: { type: string, format: date-time }
+        status: { type: string, enum: [sent] }
+        senderUserId: { type: string }
+        senderLineId: { type: string }
+        senderDisplayName: { type: string }
+        identityRevealed: { type: boolean }
+    SentReplyRecord:
+      type: object
+      required: [id, letterId, text, createdAt, status, identityRevealed, withinRange, writerLineId, writerDisplayName]
+      properties:
+        id: { type: string }
+        letterId: { type: string }
+        text: { type: string }
+        createdAt: { type: string, format: date-time }
+        status: { type: string, enum: [sent] }
+        identityRevealed: { type: boolean }
+        withinRange: { type: boolean }
+        writerLineId: { type: [string, "null"] }
+        writerDisplayName: { type: [string, "null"] }
+    IdentityRelationshipRecord:
+      type: object
+      required: [letterId, senderUserId, identityRevealed]
+      properties:
+        letterId: { type: string }
+        senderUserId: { type: string }
+        identityRevealed: { type: boolean }
+    LocalLetterMigration:
+      allOf:
+        - $ref: "#/components/schemas/CreateLetterRequest"
+        - type: object
+          required: [createdAt]
+          properties:
+            createdAt: { type: string, format: date-time }
+    LocalMigrationRequest:
+      type: object
+      required: [localUserId, displayName, letters]
+      properties:
+        localUserId: { type: string, maxLength: 64 }
+        displayName: { type: string, minLength: 1, maxLength: 40 }
+        letters:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/LocalLetterMigration" }
+    LocalMigrationResult:
+      type: object
+      required: [migratedLetters, skippedLetters, linkedLocalUserId]
+      properties:
+        migratedLetters: { type: integer, minimum: 0 }
+        skippedLetters: { type: integer, minimum: 0 }
+        linkedLocalUserId: { type: string }

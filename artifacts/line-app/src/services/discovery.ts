@@ -2,11 +2,14 @@ import type { LocationData } from '@/hooks/useLocation';
 import type { Letter } from '@/services/letters';
 
 export const DISCOVERY_RANGE_METERS = 100;
+export const UNLOCK_DISTANCE_METERS = 10;
 
 export type NearbyLetter = {
   id: string;
+  letter: Letter;
   distanceMeters: number;
   distanceLabel: string;
+  isUnlocked: boolean;
   top: string;
   left: string;
   tone: 'coral' | 'paper' | 'quiet';
@@ -30,6 +33,14 @@ export function distanceBetweenLocations(
     + Math.cos(originLatitude) * Math.cos(destinationLatitude) * Math.sin(longitudeDelta / 2) ** 2;
 
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+export function isLetterWithinUnlockRange(
+  currentLocation: Pick<LocationData, 'latitude' | 'longitude'> | null,
+  letter: Pick<Letter, 'latitude' | 'longitude'>,
+) {
+  return currentLocation !== null
+    && distanceBetweenLocations(currentLocation, letter) <= UNLOCK_DISTANCE_METERS;
 }
 
 function formatDistance(distanceMeters: number) {
@@ -63,8 +74,10 @@ export function getNearbyLetters(
 
       return {
         id: letter.id,
+        letter,
         distanceMeters,
         distanceLabel: formatDistance(distanceMeters),
+        isUnlocked: isLetterWithinUnlockRange(currentLocation, letter),
         ...marker,
       };
     });

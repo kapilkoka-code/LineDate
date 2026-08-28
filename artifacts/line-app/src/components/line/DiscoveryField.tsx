@@ -1,12 +1,14 @@
-import { RefreshCw, X } from 'lucide-react';
+import { BookOpen, LockKeyhole, RefreshCw, ShieldAlert, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { LocationStatus } from '@/hooks/useLocation';
-import type { NearbyLetter } from '@/services/discovery';
+import { UNLOCK_DISTANCE_METERS, type NearbyLetter } from '@/services/discovery';
 
 type DiscoveryFieldProps = {
   letters: NearbyLetter[];
   selectedLetter: NearbyLetter | null;
   locationStatus: LocationStatus;
   locationReady: boolean;
+  locationAccuracy: number | null;
   loading: boolean;
   onRefresh: () => void;
   onSelect: (letter: NearbyLetter) => void;
@@ -35,17 +37,97 @@ function EmptyFieldState({
   );
 }
 
+function LetterReader({
+  letter,
+  locationAccuracy,
+  loading,
+  onRefresh,
+  onClose,
+}: {
+  letter: NearbyLetter;
+  locationAccuracy: number | null;
+  loading: boolean;
+  onRefresh: () => void;
+  onClose: () => void;
+}) {
+  const createdAt = new Date(letter.letter.createdAt);
+  const dateLabel = Number.isNaN(createdAt.getTime())
+    ? 'Time unknown'
+    : createdAt.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  const inaccurate = locationAccuracy !== null && locationAccuracy > UNLOCK_DISTANCE_METERS;
+
+  return (
+    <article className="line-proximity-reader line-view-enter" data-testid="screen-unlocked-letter">
+      <div className="line-proximity-reader-topline">
+        <span className="line-mono">ANONYMOUS / LETTER FOUND</span>
+        <button type="button" onClick={onClose} aria-label="Close opened letter" data-testid="button-close-opened-letter">
+          <X size={16} strokeWidth={1.4} />
+        </button>
+      </div>
+      <div className="line-proximity-reader-rule" />
+      <p className="line-proximity-reader-text">{letter.letter.text}</p>
+      <div className="line-proximity-reader-signature line-serif">— someone who was here</div>
+      <div className="line-proximity-reader-meta line-mono">
+        <span>{letter.distanceLabel} AWAY</span>
+        <span>{dateLabel}</span>
+      </div>
+      {inaccurate && (
+        <div className="line-proximity-accuracy-warning" data-testid="warning-inaccurate-location">
+          <ShieldAlert size={14} strokeWidth={1.3} />
+          <span>GPS accuracy is approximately {Math.round(locationAccuracy)}m. Your position may be imprecise.</span>
+        </div>
+      )}
+      <button
+        type="button"
+        className="line-proximity-refresh line-mono"
+        onClick={onRefresh}
+        disabled={loading}
+        data-testid="button-refresh-opened-letter"
+      >
+        <RefreshCw size={13} strokeWidth={1.4} className={loading ? 'line-refresh-spinning' : ''} />
+        Refresh proximity
+      </button>
+    </article>
+  );
+}
+
 export function DiscoveryField({
   letters,
   selectedLetter,
   locationStatus,
   locationReady,
+  locationAccuracy,
   loading,
   onRefresh,
   onSelect,
   onDismiss,
 }: DiscoveryFieldProps) {
+  const [readerOpen, setReaderOpen] = useState(false);
   const hasResults = locationReady && letters.length > 0;
+
+  useEffect(() => {
+    setReaderOpen(false);
+  }, [selectedLetter?.id]);
+
+  useEffect(() => {
+    if (!selectedLetter?.isUnlocked) setReaderOpen(false);
+  }, [selectedLetter?.isUnlocked]);
+
+  if (readerOpen && selectedLetter?.isUnlocked) {
+    return (
+      <section className="line-discovery-field" aria-label="Opened anonymous letter">
+        <LetterReader
+          letter={selectedLetter}
+          locationAccuracy={locationAccuracy}
+          loading={loading}
+          onRefresh={onRefresh}
+          onClose={() => setReaderOpen(false)}
+        />
+      </section>
+    );
+  }
+
+  const inaccurate = locationAccuracy !== null && locationAccuracy > UNLOCK_DISTANCE_METERS;
 
   return (
     <section
@@ -78,15 +160,15 @@ export function DiscoveryField({
         <button
           key={letter.id}
           type="button"
-          className={`line-marker line-marker-${letter.tone}`}
+          className={`line-marker line-marker-${letter.tone} ${letter.isUnlocked ? 'line-marker-found' : ''}`}
           style={{ top: letter.top, left: letter.left }}
           onClick={() => onSelect(letter)}
-          aria-label={`Open anonymous letter ${letter.distanceLabel} away`}
-          data-testid={`button-letter-marker-${letter.distanceMeters}`}
+          aria-label={`Inspect ${letter.isUnlocked ? 'found' : 'anonymous'} letter ${letter.distanceLabel} away`}
+          data-testid={`button-letter-marker-${letter.id}`}
         >
           <span className="line-marker-dot line-marker-pulse" aria-hidden="true" />
           <span className="line-marker-label line-mono">
-            <span className="line-marker-letter-label">ANONYMOUS LETTER</span>
+            <span className="line-marker-letter-label">{letter.isUnlocked ? 'LETTER FOUND' : 'ANONYMOUS LETTER'}</span>
             {letter.distanceLabel}
           </span>
         </button>
@@ -95,18 +177,45 @@ export function DiscoveryField({
       {!hasResults && <EmptyFieldState locationStatus={locationStatus} locationReady={locationReady} />}
 
       {selectedLetter && (
-        <div className="line-letter-card line-view-enter" data-testid="card-selected-letter">
+        <div className={`line-letter-card line-view-enter ${selectedLetter.isUnlocked ? 'line-letter-card-found' : ''}`} data-testid="card-selected-letter">
           <button type="button" className="line-card-close" onClick={onDismiss} aria-label="Close letter preview" data-testid="button-dismiss-letter">
             <X size={15} />
           </button>
-          <span className="line-mono line-card-kicker">SIGNAL DETECTED</span>
-          <div className="line-card-title line-serif">Anonymous letter</div>
+          <span className="line-mono line-card-kicker">{selectedLetter.isUnlocked ? 'LETTER FOUND' : 'SIGNAL DETECTED'}</span>
+          <div className="line-card-title line-serif">{selectedLetter.isUnlocked ? selectedLetter.distanceLabel : 'Anonymous letter'}</div>
           <div className="line-card-meta">
             <span>{selectedLetter.distanceLabel} away</span>
             <span className="line-card-dot" aria-hidden="true" />
-            <span>Unopened</span>
+            <span>{selectedLetter.isUnlocked ? 'Within range' : 'Locked'}</span>
           </div>
-          <p>Move closer to discover.</p>
+          {inaccurate && (
+            <div className="line-card-accuracy-warning" data-testid="warning-inaccurate-location">
+              GPS ±{Math.round(locationAccuracy)}m / position may be imprecise
+            </div>
+          )}
+          {selectedLetter.isUnlocked ? (
+            <button
+              type="button"
+              className="line-card-open line-mono"
+              onClick={() => setReaderOpen(true)}
+              data-testid="button-open-letter"
+            >
+              <BookOpen size={14} strokeWidth={1.4} />
+              Open letter
+            </button>
+          ) : (
+            <p><LockKeyhole size={13} strokeWidth={1.3} /> Move closer to discover.</p>
+          )}
+          <button
+            type="button"
+            className="line-card-refresh line-mono"
+            onClick={onRefresh}
+            disabled={loading}
+            data-testid="button-refresh-selected-letter"
+          >
+            <RefreshCw size={12} strokeWidth={1.4} className={loading ? 'line-refresh-spinning' : ''} />
+            Refresh proximity
+          </button>
         </div>
       )}
     </section>

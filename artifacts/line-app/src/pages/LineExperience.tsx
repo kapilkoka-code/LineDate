@@ -54,7 +54,7 @@ function OpeningScreen({ onEnter }: { onEnter: () => void }) {
 }
 
 function DiscoverView({ location, onDropLetter }: { location: LocationState; onDropLetter: () => void }) {
-  const [selectedLetter, setSelectedLetter] = useState<NearbyLetter | null>(null);
+  const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
   const [storedLetters, setStoredLetters] = useState<Letter[]>([]);
 
   useEffect(() => {
@@ -66,6 +66,13 @@ function DiscoverView({ location, onDropLetter }: { location: LocationState; onD
     [location.location, storedLetters],
   );
   const locationReady = location.status === 'active' && location.location !== null;
+  const selectedLetter = nearbyLetters.find((letter) => letter.id === selectedLetterId) ?? null;
+
+  useEffect(() => {
+    if (selectedLetterId && locationReady && !selectedLetter) {
+      setSelectedLetterId(null);
+    }
+  }, [locationReady, selectedLetter, selectedLetterId]);
 
   return (
     <div className="line-view line-discover-view">
@@ -78,7 +85,7 @@ function DiscoverView({ location, onDropLetter }: { location: LocationState; onD
           <span className="line-section-index line-mono">01 / DISCOVER</span>
           <h1 className="line-view-title line-serif">Find what’s<br /><em>left behind.</em></h1>
         </div>
-        <p className="line-view-caption">Fictional signals —<br />not your location.</p>
+        <p className="line-view-caption">Private signals —<br />within 100 metres.</p>
       </div>
       <LocationPanel location={location} />
       <button type="button" className="line-drop-letter" onClick={onDropLetter} data-testid="button-open-letter-composer">
@@ -93,10 +100,11 @@ function DiscoverView({ location, onDropLetter }: { location: LocationState; onD
         selectedLetter={selectedLetter}
         locationStatus={location.status}
         locationReady={locationReady}
+        locationAccuracy={location.location?.accuracy ?? null}
         loading={location.loading}
         onRefresh={location.requestLocation}
-        onSelect={setSelectedLetter}
-        onDismiss={() => setSelectedLetter(null)}
+        onSelect={(letter) => setSelectedLetterId(letter.id)}
+        onDismiss={() => setSelectedLetterId(null)}
       />
       <div className="line-discover-footnote line-mono">
         <span>{locationReady ? `${nearbyLetters.length} SIGNAL${nearbyLetters.length === 1 ? '' : 'S'} WITHIN 100M` : 'DISCOVERY STANDBY'}</span>

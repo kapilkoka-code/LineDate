@@ -1,0 +1,155 @@
+Continue the existing LINE project. Steps 1–4 are complete and validated. Do not rebuild or break existing functionality.
+
+STEP 5 — PHYSICAL PROXIMITY UNLOCK
+
+Build LINE’s first real proximity unlock mechanic.
+
+Objective
+
+A nearby letter can only be opened when the user is physically close enough to it.
+
+Use the existing real GPS location and Haversine distance system from Step 4.
+
+Rules
+
+* Discovery range remains 100 metres.
+* A letter becomes readable only when the user is 10 metres or closer.
+* Keep the unlock distance as a configurable constant so it can later be changed to 5m if required.
+* Do not expose the letter’s coordinates.
+
+DISCOVER
+
+For each discovered letter:
+
+More than 10m away:
+
+Show:
+
+ANONYMOUS LETTER
+
+XXm away
+
+MOVE CLOSER TO DISCOVER
+
+Do not reveal any letter content.
+
+10m or closer:
+
+Change the interface to:
+
+LETTER FOUND
+
+XXm away
+
+OPEN LETTER
+
+The user can now open it.
+
+LIVE PROXIMITY
+
+When the user is viewing a discovered letter, provide a way to refresh their location.
+
+Do not continuously poll GPS yet.
+
+When refreshed:
+
+* recalculate distance
+* lock the letter again if the user has moved beyond 10m
+* unlock it if they are within 10m
+
+The UI should clearly communicate the state.
+
+Example:
+
+8m
+
+WITHIN RANGE
+
+OPEN LETTER
+
+When the user opens an unlocked letter, display the actual letter content.
+
+Create a beautiful immersive reading experience consistent with LINE’s existing design.
+
+Show:
+
+* ANONYMOUS
+* letter text
+* approximate distance
+* date/time if appropriate
+
+Do not reveal the writer’s identity.
+
+OWN LETTERS
+
+The user must never need proximity to read their own letters.
+
+Their letters continue to be accessed through:
+
+PROFILE → MY LETTERS
+
+Do not expose other users’ letter contents through My Letters.
+
+IMPORTANT SECURITY/LOGIC RULE
+
+Do not unlock a letter merely because the UI says the user is nearby.
+
+The unlock decision must be based on the calculated geographic distance between:
+
+current user location
+
+and
+
+letter coordinates
+
+Keep the proximity calculation in reusable logic so it can later be reused by the reply system.
+
+EDGE CASES
+
+Handle:
+
+* location permission denied
+* location unavailable
+* inaccurate GPS
+* letter outside discovery range
+* user moves away after unlocking
+* missing/corrupted letter data
+
+If GPS accuracy is worse than the unlock threshold, clearly communicate that the location may be inaccurate rather than falsely guaranteeing proximity.
+
+DO NOT IMPLEMENT YET
+
+Do NOT build:
+
+* replies
+* identity reveal
+* backend/database
+* multi-user synchronization
+* authentication
+* AR/camera
+* REDLINE
+* payments
+* notifications
+* remote/premium letter access
+
+Those will be separate steps.
+
+TEST
+
+Verify:
+
+1. Letter within 100m appears.
+2. Letter beyond 100m does not appear.
+3. Letter beyond 10m cannot be opened.
+4. Letter at/within 10m can be opened.
+5. Actual letter content remains hidden until unlocked.
+6. Refreshing location recalculates distance.
+7. Moving beyond 10m locks the letter again.
+8. Own letters remain accessible through My Letters.
+9. No raw coordinates are displayed.
+10. Existing composer/draft/back behavior still works.
+11. TypeScript typecheck passes.
+12. Production build passes.
+13. Mobile browser flow and console logs are clean.
+
+After completing Step 5, STOP. Do not implement Step 6.

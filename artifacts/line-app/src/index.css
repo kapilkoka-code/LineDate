@@ -1925,6 +1925,16 @@ a:focus-visible {
   background: var(--line-coral);
 }
 
+.line-marker-found .line-marker-dot {
+  border-color: var(--line-paper);
+  background: var(--line-paper);
+  box-shadow: 0 0 0 6px rgba(243, 92, 79, 0.14);
+}
+
+.line-marker-found .line-marker-letter-label {
+  color: var(--line-coral);
+}
+
 .line-marker-quiet {
   opacity: 0.52;
 }
@@ -1954,6 +1964,13 @@ a:focus-visible {
   background: rgba(28, 25, 23, 0.93);
   padding: 18px 18px 17px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+}
+
+.line-letter-card-found {
+  border-color: rgba(243, 92, 79, 0.6);
+  background:
+    radial-gradient(circle at 100% 0, rgba(243, 92, 79, 0.12), transparent 42%),
+    rgba(28, 25, 23, 0.96);
 }
 
 .line-card-close {
@@ -1996,9 +2013,160 @@ a:focus-visible {
 }
 
 .line-letter-card p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   margin: 12px 0 0;
   color: var(--line-paper);
   font-size: 0.67rem;
+}
+
+.line-card-open,
+.line-card-refresh,
+.line-proximity-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  font-size: 0.5rem;
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease, opacity 180ms ease;
+}
+
+.line-card-open {
+  width: 100%;
+  margin-top: 14px;
+  border-color: var(--line-coral);
+  background: var(--line-coral);
+  padding: 10px 12px;
+  color: var(--line-ink);
+}
+
+.line-card-open:hover {
+  border-color: var(--line-paper);
+  background: var(--line-paper);
+}
+
+.line-card-refresh {
+  margin-top: 11px;
+  background: transparent;
+  padding: 5px 0;
+  color: var(--line-ash);
+}
+
+.line-card-refresh:hover,
+.line-proximity-refresh:hover {
+  color: var(--line-coral);
+}
+
+.line-card-refresh:disabled,
+.line-proximity-refresh:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.line-card-accuracy-warning {
+  margin-top: 11px;
+  border-left: 1px solid var(--line-coral);
+  padding-left: 8px;
+  color: var(--line-ash);
+  font-family: var(--app-font-mono);
+  font-size: 0.46rem;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.line-proximity-reader {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background:
+    linear-gradient(115deg, transparent 0 68%, rgba(243, 92, 79, 0.04) 68% 68.3%, transparent 68.3%),
+    var(--line-paper);
+  padding: 20px 19px 18px;
+  color: var(--line-ink);
+}
+
+.line-proximity-reader-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: rgba(23, 21, 19, 0.55);
+  font-size: 0.49rem;
+}
+
+.line-proximity-reader-topline button {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 1px solid rgba(23, 21, 19, 0.2);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--line-ink);
+}
+
+.line-proximity-reader-rule {
+  width: 42px;
+  height: 1px;
+  margin-top: 18px;
+  background: var(--line-coral);
+}
+
+.line-proximity-reader-text {
+  flex: 1 0 auto;
+  margin: 38px 5px 27px;
+  white-space: pre-wrap;
+  color: var(--line-ink);
+  font-family: var(--app-font-serif);
+  font-size: clamp(1.8rem, 8vw, 2.6rem);
+  line-height: 1.04;
+}
+
+.line-proximity-reader-signature {
+  margin: 0 5px 20px;
+  color: rgba(23, 21, 19, 0.58);
+  font-size: 0.94rem;
+  font-style: italic;
+}
+
+.line-proximity-reader-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid rgba(23, 21, 19, 0.16);
+  padding-top: 11px;
+  color: rgba(23, 21, 19, 0.56);
+  font-size: 0.46rem;
+}
+
+.line-proximity-accuracy-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  border: 1px solid rgba(243, 92, 79, 0.42);
+  padding: 8px 9px;
+  color: rgba(23, 21, 19, 0.68);
+  font-size: 0.54rem;
+  line-height: 1.4;
+}
+
+.line-proximity-accuracy-warning svg {
+  flex: 0 0 auto;
+  color: var(--line-coral);
+}
+
+.line-proximity-refresh {
+  align-self: flex-start;
+  margin-top: 12px;
+  background: transparent;
+  padding: 5px 0;
+  color: rgba(23, 21, 19, 0.58);
 }
 
 .line-discover-footnote,

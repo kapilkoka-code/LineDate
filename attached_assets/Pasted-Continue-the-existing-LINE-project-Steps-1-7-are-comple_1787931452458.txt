@@ -1,0 +1,125 @@
+Continue the existing LINE project. Steps 1–7 are complete and validated. Do not rebuild or break existing functionality.
+
+STEP 8 — PHYSICAL ACCESS TO REPLIES
+
+Implement LINE’s physical-location requirement for reading replies to a user’s own letters.
+
+CORE RULE
+
+When someone replies to your letter, you may know that a reply exists, but you cannot read its contents unless you physically return to the location where you dropped the original letter.
+
+Use the existing GPS + Haversine system.
+
+ACCESS DISTANCE
+
+Use the existing configurable proximity threshold:
+
+10 metres
+
+Keep it configurable.
+
+MY LETTERS
+
+Continue showing:
+
+Someone replied
+
+on the letter card.
+
+This notification/status is visible remotely.
+
+However, do NOT reveal:
+
+* reply text
+* sender details beyond the existing temporary ID
+* reply contents
+
+until the user is physically within 10m of the original letter location.
+
+WHAT CAME BACK
+
+When the user opens a letter with replies:
+
+If farther than 10m:
+
+Show:
+
+SOMEONE REPLIED
+
+Return to where you left this letter to read what came back.
+
+Display the current approximate distance.
+
+Do not show reply content.
+
+If within 10m:
+
+Show:
+
+WITHIN RANGE
+
+Allow:
+
+READ REPLIES
+
+Opening it displays the existing replies screen from Step 7.
+
+LIVE PROXIMITY
+
+Reuse the existing location/proximity logic.
+
+Provide a manual location refresh.
+
+If the user moves beyond 10m:
+
+* immediately hide reply contents
+* return to the locked state
+* do not leave reply text visible in the UI
+
+IMPORTANT SECURITY/PRIVACY RULE
+
+Do not merely hide the reply using CSS.
+
+The application state must prevent locked reply content from being rendered/displayed.
+
+Do not expose reply text through nearby-letter cards, My Letters cards, or locked screens.
+
+OWN LETTERS ONLY
+
+This rule applies only to replies to letters owned by the current local user.
+
+Do not change the existing external-letter unlocking system.
+
+DO NOT IMPLEMENT YET
+
+Do NOT build:
+
+* premium remote reply access
+* payments
+* authentication
+* backend/database
+* real multi-user synchronization
+* identity reveal
+* notifications
+* AR/camera
+* REDLINE
+
+TEST
+
+Verify:
+
+1. A letter with a reply shows Someone replied remotely.
+2. Reply content remains hidden beyond 10m.
+3. The current distance is displayed.
+4. Within 10m, replies become readable.
+5. Moving beyond 10m hides the reply content again.
+6. Manual GPS refresh updates access correctly.
+7. Multiple replies remain correctly associated with their letter.
+8. External-letter functionality remains unchanged.
+9. No reply content leaks into locked UI/state.
+10. Existing composer, letter discovery and proximity unlocking still work.
+11. TypeScript typecheck passes.
+12. Production build passes.
+13. Mobile flow and browser console are clean.
+
+After completing Step 8, STOP. Do not implement Step 9.

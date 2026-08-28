@@ -1,4 +1,4 @@
-import { ArrowUpRight, ChevronRight, FileText, LockKeyhole, PenLine, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight, ChevronRight, FileText, LockKeyhole, PenLine, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BottomNav, type AppView } from '@/components/line/BottomNav';
 import { DiscoveryField } from '@/components/line/DiscoveryField';
@@ -6,7 +6,13 @@ import { LineMark } from '@/components/line/LineMark';
 import { LetterComposer } from '@/components/line/LetterComposer';
 import { LocationHeaderStatus, LocationPanel } from '@/components/line/LocationPanel';
 import { useLocation, type LocationState } from '@/hooks/useLocation';
-import { getNearbyLetters, type NearbyLetter } from '@/services/discovery';
+import {
+  distanceBetweenLocations,
+  getNearbyLetters,
+  isLetterWithinUnlockRange,
+  UNLOCK_DISTANCE_METERS,
+  type NearbyLetter,
+} from '@/services/discovery';
 import { loadLetters, type Letter } from '@/services/letters';
 import { loadReplies, type LetterReply } from '@/services/replies';
 
@@ -188,12 +194,34 @@ function formatReplyDate(value: string) {
 function RepliesView({
   letter,
   replies,
+  hasReplies,
+  location,
   onBack,
 }: {
   letter: Letter;
   replies: LetterReply[];
+  hasReplies: boolean;
+  location: LocationState;
   onBack: () => void;
 }) {
+  const [showReplies, setShowReplies] = useState(false);
+  const currentDistance = location.location
+    ? distanceBetweenLocations(location.location, letter)
+    : null;
+  const withinRange = isLetterWithinUnlockRange(location.location, letter);
+  const inaccurate = location.location !== null && location.location.accuracy > UNLOCK_DISTANCE_METERS;
+
+  useEffect(() => {
+    if (!withinRange) setShowReplies(false);
+  }, [withinRange]);
+
+  const dateLabel = (value: string) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? 'TIME UNKNOWN'
+      : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  };
+
   return (
     <div className="line-replies-view line-view-enter" data-testid="screen-letter-replies">
       <div className="line-replies-heading">
@@ -211,26 +239,71 @@ function RepliesView({
         <p>{letter.text}</p>
       </div>
 
-      {replies.length === 0 ? (
+      {!withinRange || !showReplies ? (
+        <div className={`line-replies-access ${withinRange ? 'line-replies-access-open' : ''}`} data-testid="panel-reply-access">
+          <div className="line-replies-access-icon" aria-hidden="true">
+            {withinRange ? <ShieldCheck size={19} strokeWidth={1.2} /> : <LockKeyhole size={18} strokeWidth={1.2} />}
+          </div>
+          <span className="line-mono">{hasReplies ? (withinRange ? 'WITHIN RANGE' : 'SOMEONE REPLIED') : 'NO REPLIES YET'}</span>
+          <p>
+            {hasReplies
+              ? withinRange
+                ? 'You are close enough to read what came back.'
+                : 'Return to where you left this letter to read what came back.'
+              : 'Maybe someone hasn’t found your letter.'}
+          </p>
+          <div className="line-replies-distance line-mono">
+            <span>{currentDistance === null ? 'LOCATION NEEDED' : `CURRENT DISTANCE / ~${Math.max(1, Math.round(currentDistance))}M`}</span>
+            <span>ACCESS RANGE / {UNLOCK_DISTANCE_METERS}M</span>
+          </div>
+          {inaccurate && (
+            <div className="line-replies-accuracy-warning" data-testid="warning-reply-location-accuracy">
+              <ShieldAlert size={14} strokeWidth={1.3} />
+              <span>GPS is approximately {Math.round(location.location!.accuracy)}m accurate. Access may be imprecise.</span>
+            </div>
+          )}
+          <div className="line-replies-access-actions">
+            <button type="button" className="line-replies-refresh line-mono" onClick={location.requestLocation} disabled={location.loading} data-testid="button-refresh-reply-access">
+              <RefreshCw size={13} strokeWidth={1.4} className={location.loading ? 'line-refresh-spinning' : ''} />
+              Refresh location
+            </button>
+            {withinRange && hasReplies && (
+              <button type="button" className="line-replies-read line-mono" onClick={() => setShowReplies(true)} data-testid="button-read-replies">
+                Read replies
+                <ArrowUpRight size={14} strokeWidth={1.4} />
+              </button>
+            )}
+          </div>
+        </div>
+      ) : replies.length === 0 ? (
         <div className="line-replies-empty" data-testid="state-no-replies">
           <span className="line-mono">NO REPLIES YET</span>
           <p>Maybe someone hasn’t found your letter.</p>
         </div>
       ) : (
-        <div className="line-replies-list" aria-label="Replies to this letter" data-testid="list-letter-replies">
-          {replies.map((reply) => (
-            <article className="line-reply-inbox-card" key={reply.id} data-testid={`card-letter-reply-${reply.id}`}>
-              <div className="line-reply-inbox-topline line-mono">
-                <span>REPLY / {reply.status.toUpperCase()}</span>
-                <span>{formatReplyDate(reply.createdAt)}</span>
-              </div>
-              <p>{reply.text}</p>
-              <div className="line-reply-inbox-meta line-mono">
-                <span>FROM TEMPORARY ID</span>
-                <strong>{reply.senderId}</strong>
-              </div>
-            </article>
-          ))}
+        <div className="line-replies-readable">
+          <div className="line-replies-readable-status">
+            <span className="line-mono">WITHIN RANGE / CONTENT OPEN</span>
+            <button type="button" className="line-replies-refresh line-mono" onClick={location.requestLocation} disabled={location.loading} data-testid="button-refresh-open-replies">
+              <RefreshCw size={13} strokeWidth={1.4} className={location.loading ? 'line-refresh-spinning' : ''} />
+              Refresh proximity
+            </button>
+          </div>
+          <div className="line-replies-list" aria-label="Replies to this letter" data-testid="list-letter-replies">
+            {replies.map((reply) => (
+              <article className="line-reply-inbox-card" key={reply.id} data-testid={`card-letter-reply-${reply.id}`}>
+                <div className="line-reply-inbox-topline line-mono">
+                  <span>REPLY / {reply.status.toUpperCase()}</span>
+                  <span>{dateLabel(reply.createdAt)}</span>
+                </div>
+                <p>{reply.text}</p>
+                <div className="line-reply-inbox-meta line-mono">
+                  <span>FROM TEMPORARY ID</span>
+                  <strong>{reply.senderId}</strong>
+                </div>
+              </article>
+            ))}
+          </div>
         </div>
       )}
 
@@ -290,7 +363,7 @@ function MyLetters({
   );
 }
 
-function ProfileView() {
+function ProfileView({ location }: { location: LocationState }) {
   const [activeRow, setActiveRow] = useState<string | null>(null);
   const [showMyLetters, setShowMyLetters] = useState(false);
   const [letters, setLetters] = useState<Letter[]>([]);
@@ -305,6 +378,12 @@ function ProfileView() {
   }, [showMyLetters]);
 
   const selectedLetter = letters.find((letter) => letter.id === selectedLetterId) ?? null;
+  const selectedLetterReplies = selectedLetter
+    ? replies.filter((reply) => reply.letterId === selectedLetter.id)
+    : [];
+  const selectedLetterIsWithinRange = selectedLetter
+    ? isLetterWithinUnlockRange(location.location, selectedLetter)
+    : false;
 
   return (
     <div className="line-view line-profile-view">
@@ -315,7 +394,9 @@ function ProfileView() {
       {selectedLetter ? (
         <RepliesView
           letter={selectedLetter}
-          replies={replies.filter((reply) => reply.letterId === selectedLetter.id)}
+          replies={selectedLetterIsWithinRange ? selectedLetterReplies : []}
+          hasReplies={selectedLetterReplies.length > 0}
+          location={location}
           onBack={() => setSelectedLetterId(null)}
         />
       ) : (
@@ -378,7 +459,7 @@ function AppViewContent({
 }) {
   if (activeView === 'camera') return <CameraView />;
   if (activeView === 'redline') return <RedlineView />;
-  if (activeView === 'profile') return <ProfileView />;
+  if (activeView === 'profile') return <ProfileView location={location} />;
   return <DiscoverView location={location} onDropLetter={onDropLetter} />;
 }
 

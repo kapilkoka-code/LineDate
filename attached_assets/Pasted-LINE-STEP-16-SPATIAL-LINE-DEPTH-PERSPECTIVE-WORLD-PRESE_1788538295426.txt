@@ -1,0 +1,506 @@
+LINE — STEP 16: SPATIAL LINE — DEPTH, PERSPECTIVE & WORLD PRESENCE
+
+Step 15 is complete.
+
+Do NOT rebuild Step 14 or Step 15.
+
+Do NOT replace the existing camera, sensor layer, location system, API, database, authentication, proximity enforcement, replies, reveals, or letter reader.
+
+This step builds on the existing reliable directional system.
+
+⸻
+
+GOAL
+
+Make the LINE feel like it exists inside the physical environment, rather than looking like a flat UI element placed over the camera.
+
+The user should feel:
+
+“That light is somewhere over there.”
+
+rather than:
+
+“That graphic is pointing over there.”
+
+The visual goal is:
+
+DEPTH + PERSPECTIVE + ATMOSPHERE + STABILITY
+
+Do not implement full AR world tracking yet.
+
+⸻
+
+1. SPATIAL LINE COMPONENT
+
+Improve the existing CinematicLine.
+
+The LINE should have:
+
+* two parallel vertical beams
+* perspective scaling
+* atmospheric depth
+* distance-based brightness
+* distance-based width
+* soft environmental haze
+* subtle vertical fade
+* subtle bloom
+* realistic falloff
+
+The two beams must remain visibly separate.
+
+Do not turn them into an arrow or navigation marker.
+
+⸻
+
+2. DEPTH MODEL
+
+Use distanceMeters to create the perception of depth.
+
+Conceptually:
+
+FAR
+→ narrow
+→ faint
+→ soft
+→ partially obscured
+MEDIUM
+→ clearer
+→ brighter
+→ more defined
+NEAR
+→ larger
+→ stronger
+→ brighter core
+→ stronger atmospheric glow
+UNLOCK
+→ maximum presence
+→ cinematic pulse
+
+Do not reveal exact distance unless the existing UX already does so.
+
+⸻
+
+3. PERSPECTIVE
+
+The LINE should not always have the same visual size.
+
+Introduce controlled perspective.
+
+Far signals:
+
+* narrower
+* thinner
+* less bright
+
+Near signals:
+
+* slightly wider
+* brighter
+* more atmospheric
+
+Avoid exaggerated scaling.
+
+It should feel physically plausible rather than like a game effect.
+
+⸻
+
+4. HORIZONTAL POSITION
+
+Continue using the Step 15 smoothed angular difference.
+
+The LINE should move horizontally based on:
+
+LINE BEARING
+-
+USER HEADING
+
+Use the existing shortest-angle calculation.
+
+Do not create a second orientation system.
+
+⸻
+
+5. OFF-SCREEN BEHAVIOUR
+
+When a LINE is outside the camera’s useful viewing direction:
+
+do not simply teleport it away.
+
+Instead:
+
+* fade it gradually
+* allow a small portion of atmospheric glow to remain
+* bring it back smoothly as the user turns toward it
+
+Do NOT display an arrow telling the user where to turn.
+
+The user should discover the direction naturally.
+
+⸻
+
+6. VERTICAL PLACEMENT
+
+The LINE should feel as if it rises from somewhere on the ground/environment.
+
+Create a subtle origin/base glow.
+
+The beam should then extend upward.
+
+Do not place a visible marker, pin, circle, or target on the ground.
+
+The base should be atmospheric and understated.
+
+⸻
+
+7. ENVIRONMENTAL ATMOSPHERE
+
+Add subtle environmental interaction.
+
+Possible layers:
+
+* haze
+* light bloom
+* faint particles
+* soft volumetric appearance
+* slight camera-relative atmospheric distortion
+
+Keep these subtle.
+
+The camera environment must remain visible.
+
+Do not cover the screen with effects.
+
+⸻
+
+8. DAY / NIGHT BEHAVIOUR
+
+The LINE should adapt to ambient conditions where practical.
+
+At night:
+
+* stronger beam presence
+* stronger glow
+* more visible atmospheric falloff
+
+During bright daylight:
+
+* reduced bloom
+* slightly stronger core
+* reduced haze
+
+Do not require advanced computer vision.
+
+Use a lightweight approximation if ambient information is unavailable.
+
+⸻
+
+9. MULTIPLE LINES
+
+Keep Step 14’s maximum of three prominent signals.
+
+Primary:
+
+strongest and clearest.
+
+Secondary:
+
+fainter and less intrusive.
+
+Tertiary:
+
+very subtle.
+
+Each LINE should maintain independent:
+
+bearing
+distance
+intensity
+confidence
+unlock state
+
+⸻
+
+10. MOTION
+
+Introduce extremely subtle movement.
+
+The beam may have:
+
+* slow atmospheric breathing
+* tiny light fluctuations
+* subtle particles
+
+Avoid:
+
+* shaking
+* rapid pulsing
+* game-like animation
+* excessive particle effects
+
+The LINE should feel alive but almost still.
+
+⸻
+
+11. CAMERA MOVEMENT
+
+The LINE should remain visually stable while the user moves the phone.
+
+Do not introduce noticeable lag.
+
+Use the already smoothed heading.
+
+The visual layer should interpolate between sensor updates.
+
+⸻
+
+12. CONFIDENCE INTEGRATION
+
+Use Step 15’s confidence state.
+
+HIGH
+
+Full spatial effect.
+
+MEDIUM
+
+Slightly soften positional precision.
+
+LOW
+
+Reduce movement and atmospheric intensity.
+
+UNAVAILABLE
+
+Use existing touch fallback.
+
+Never create a false impression of accuracy.
+
+⸻
+
+13. UNLOCK EXPERIENCE
+
+Keep Step 14’s unlock sequence.
+
+When the server confirms isUnlocked:
+
+LINE intensifies
+→ atmospheric bloom
+→ subtle pulse
+→ YOU FOUND A LINE
+→ OPEN LETTER
+
+Do not change server authorization.
+
+The frontend must never unlock based solely on:
+
+distanceMeters <= threshold
+
+⸻
+
+14. PERFORMANCE
+
+Maintain mobile performance.
+
+Target:
+
+60 FPS where possible.
+
+Use GPU-friendly:
+
+* transform
+* opacity
+* compositing
+
+Avoid expensive per-frame DOM calculations.
+
+If using Canvas/WebGL:
+
+* reuse buffers
+* avoid unnecessary allocations
+* dispose resources correctly
+
+Do not add a large AR framework yet.
+
+⸻
+
+15. ACCESSIBILITY
+
+Respect:
+
+prefers-reduced-motion
+
+When enabled:
+
+* reduce atmospheric movement
+* remove unnecessary particles
+* reduce bloom animation
+* preserve directional visibility
+
+Keep accessible distance/status descriptions.
+
+⸻
+
+16. DEVELOPMENT MODE
+
+Extend existing development diagnostics to visualize:
+
+distance
+bearing
+heading
+angular difference
+confidence
+visual intensity
+visual scale
+
+Keep all diagnostics development-only.
+
+Production must contain none of these debug labels.
+
+⸻
+
+17. TEST SCENARIOS
+
+Use the existing simulation.
+
+Test:
+
+distance:
+100m
+50m
+20m
+10m
+5m
+
+and:
+
+bearing:
+0°
+90°
+180°
+270°
+
+and wrap-around:
+
+350° → 10°
+10° → 350°
+
+Verify:
+
+* correct horizontal movement
+* smooth transitions
+* distance-based depth
+* off-screen fade
+* multiple LINE prioritization
+* unlock animation
+* touch fallback
+
+⸻
+
+18. IMPORTANT LIMITATION
+
+Do NOT claim this is true AR world anchoring.
+
+This step creates a convincing spatial visual layer using:
+
+* camera
+* bearing
+* orientation
+* distance
+* perspective
+* atmospheric rendering
+
+True world-anchored AR will be a future step.
+
+⸻
+
+19. DO NOT BREAK EXISTING FEATURES
+
+Verify after implementation:
+
+[ ] Authentication works.
+
+[ ] Letter creation works.
+
+[ ] Nearby discovery works.
+
+[ ] FIND works.
+
+[ ] Camera permissions work.
+
+[ ] Sensor permissions work.
+
+[ ] Orientation fallback works.
+
+[ ] Replies work.
+
+[ ] My Letters works.
+
+[ ] Profile works.
+
+[ ] Reveal system works.
+
+[ ] Letter expiration works.
+
+[ ] Server-side proximity remains authoritative.
+
+[ ] No exact writer coordinates are exposed.
+
+[ ] No writer identity is exposed prematurely.
+
+⸻
+
+ACCEPTANCE CRITERIA
+
+Step 16 is complete when:
+
+[ ] LINE feels spatial rather than flat.
+
+[ ] Two parallel beams remain clearly separated.
+
+[ ] Distance affects perceived depth.
+
+[ ] Perspective changes subtly with distance.
+
+[ ] Horizontal positioning remains sensor-driven.
+
+[ ] Off-screen LINEs fade naturally.
+
+[ ] Beam appears to originate from the environment.
+
+[ ] Atmospheric effects remain subtle.
+
+[ ] Day/night presentation adapts where possible.
+
+[ ] Multiple LINEs retain prioritization.
+
+[ ] Sensor confidence affects visual certainty.
+
+[ ] Existing unlock animation remains intact.
+
+[ ] No frontend proximity bypass exists.
+
+[ ] Performance remains smooth.
+
+[ ] Reduced-motion support remains functional.
+
+[ ] Existing FIND functionality remains intact.
+
+⸻
+
+DESIGN PRINCIPLE
+
+The user should not think:
+
+“The app is showing me a marker.”
+
+They should think:
+
+“There is a light over there.”
+
+And when they walk toward it:
+
+“I’m getting closer.”
+
+That feeling is the foundation for the next stage:
+
+TRUE WORLD-ANCHORED AR.

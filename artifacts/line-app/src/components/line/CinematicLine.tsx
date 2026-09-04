@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { getSpatialLineMetrics } from '@/services/spatialLine';
 
 type CinematicLineProps = {
   letterId: string;
@@ -6,11 +7,15 @@ type CinematicLineProps = {
   bearing: number;
   isUnlocked: boolean;
   intensity: number;
-  opacity: number;
+  beamOpacity: number;
+  atmosphereOpacity: number;
   scale: number;
   horizontalPosition: number;
   secondary?: boolean;
+  tertiary?: boolean;
   pulse?: boolean;
+  confidence?: 'high' | 'medium' | 'low' | 'unavailable';
+  isNight?: boolean;
   onOpen?: () => void;
 };
 
@@ -20,19 +25,29 @@ export function CinematicLine({
   bearing,
   isUnlocked,
   intensity,
-  opacity,
+  beamOpacity = 0,
+  atmosphereOpacity = 0,
   scale,
   horizontalPosition,
   secondary = false,
+  tertiary = false,
   pulse = false,
+  confidence = 'high',
+  isNight = false,
   onOpen,
 }: CinematicLineProps) {
   const roundedDistance = Math.max(1, Math.round(distanceMeters));
+  const metrics = getSpatialLineMetrics(distanceMeters, scale, isNight);
+
   const style = {
-    '--find-x': `${horizontalPosition}%`,
+    '--find-x': horizontalPosition,
     '--find-intensity': intensity,
-    '--find-opacity': opacity,
-    '--find-scale': scale,
+    '--find-beam-opacity': beamOpacity,
+    '--find-atmosphere-opacity': atmosphereOpacity,
+    '--find-scale-x': metrics.scaleX,
+    '--find-scale-y': metrics.scaleY,
+    '--find-core-opacity': metrics.coreOpacity,
+    '--find-haze-opacity': metrics.hazeOpacity,
   } as CSSProperties;
 
   return (
@@ -41,14 +56,21 @@ export function CinematicLine({
         'line-cinematic-line',
         isUnlocked ? 'line-cinematic-line-unlocked' : '',
         secondary ? 'line-cinematic-line-secondary' : '',
+        tertiary ? 'line-cinematic-line-tertiary' : '',
         pulse ? 'line-cinematic-line-pulse' : '',
+        isNight ? 'line-cinematic-night' : 'line-cinematic-day',
+        `line-confidence-${confidence}`,
       ].filter(Boolean).join(' ')}
       style={style}
       aria-label={`Anonymous letter approximately ${roundedDistance} meters away.${isUnlocked ? ' The letter is unlocked.' : ''}`}
       data-bearing={Math.round(bearing)}
+      data-beam-opacity={beamOpacity.toFixed(3)}
+      data-atmosphere-opacity={atmosphereOpacity.toFixed(3)}
       data-testid={`signal-beam-${letterId}`}
     >
-      <div className="line-cinematic-atmosphere" aria-hidden="true" />
+      <div className="line-cinematic-atmosphere" aria-hidden="true">
+        <div className="line-cinematic-base-glow" />
+      </div>
       <div className="line-cinematic-beam-pair" aria-hidden="true">
         {[0, 1].map((beam) => (
           <div className="line-cinematic-beam" key={beam}>

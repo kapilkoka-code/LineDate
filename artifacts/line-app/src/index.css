@@ -3677,17 +3677,19 @@ a:focus-visible {
 
 .line-cinematic-line {
   position: absolute;
-  z-index: 4;
-  bottom: 8%;
-  left: var(--find-x);
-  width: 150px;
-  height: 76%;
-  opacity: var(--find-opacity);
-  transform: translateX(-50%) scale(var(--find-scale));
-  transform-origin: center bottom;
-  transition: left 90ms linear, opacity 220ms ease, transform 420ms ease;
+  bottom: 25%;
+  left: 0;
+  width: 140px;
+  height: 60vh;
+  transform: translateX(calc(var(--find-x) * 1vw - 50%));
   pointer-events: none;
-  will-change: left, opacity, transform;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  will-change: transform, opacity;
+  z-index: 4;
+  transition: opacity 200ms ease;
 }
 
 .line-cinematic-line-secondary {
@@ -3695,106 +3697,192 @@ a:focus-visible {
   filter: saturate(0.72);
 }
 
+.line-cinematic-line-tertiary {
+  z-index: 2;
+  filter: saturate(0.58) blur(0.3px);
+}
+
 .line-cinematic-atmosphere {
   position: absolute;
-  right: -44px;
-  bottom: -18px;
-  left: -44px;
-  height: 42%;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(243, 92, 79, calc(0.16 * var(--find-intensity))), transparent 67%);
-  filter: blur(22px);
+  bottom: -50px;
+  width: 400px;
+  height: 250px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  pointer-events: none;
+  transform-origin: bottom center;
+  transform: scale(var(--find-scale-x), var(--find-scale-y));
+  opacity: calc(var(--find-atmosphere-opacity) * var(--find-intensity));
+  transition: opacity 220ms ease;
+}
+
+.line-cinematic-base-glow {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at bottom center, rgba(243, 92, 79, 0.45), transparent 65%);
   mix-blend-mode: screen;
+}
+
+.line-cinematic-night .line-cinematic-base-glow {
+  background: radial-gradient(ellipse at bottom center, rgba(243, 92, 79, 0.7), transparent 75%);
+}
+
+.line-cinematic-day .line-cinematic-base-glow {
+  background: radial-gradient(ellipse at bottom center, rgba(243, 92, 79, 0.25), transparent 60%);
+}
+
+.line-cinematic-day .line-cinematic-beam-core {
+  opacity: min(1, calc(var(--find-core-opacity) + 0.12));
+  box-shadow: 0 0 9px rgba(243, 92, 79, 0.42);
+}
+
+.line-cinematic-night .line-cinematic-beam-glow {
+  filter: blur(1.2px);
 }
 
 .line-cinematic-beam-pair {
   position: absolute;
-  inset: 0;
+  bottom: 0;
+  width: 100%;
+  height: 105vh;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  transform-origin: bottom center;
+  transform: scale(var(--find-scale-x), var(--find-scale-y));
+  opacity: var(--find-beam-opacity);
+  animation: line-atmospheric-breathe 8s ease-in-out infinite alternate;
+  transition: opacity 160ms ease;
+  will-change: transform, opacity;
+}
+
+@keyframes line-atmospheric-breathe {
+  0% { transform: scale(var(--find-scale-x), var(--find-scale-y)) translateY(0); }
+  100% { transform: scale(calc(var(--find-scale-x) * 1.02), calc(var(--find-scale-y) * 1.01)) translateY(-1%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line-cinematic-beam-pair {
+    animation: none;
+  }
 }
 
 .line-cinematic-beam {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: calc(50% - 15px);
-  width: 11px;
-  transform: translateX(-50%);
-}
-
-.line-cinematic-beam + .line-cinematic-beam {
-  left: calc(50% + 15px);
-}
-
-.line-cinematic-beam > span {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
+  position: relative;
+  width: 10px;
   height: 100%;
-  transform: translateX(-50%);
-  transform-origin: center bottom;
-  mix-blend-mode: screen;
+  display: flex;
+  justify-content: center;
+  transform-origin: bottom center;
+}
+
+.line-cinematic-beam span {
+  position: absolute;
+  bottom: 0;
+  height: 100%;
+  background: linear-gradient(to top, rgba(243, 92, 79, 1) 0%, rgba(243, 92, 79, 0.8) 15%, transparent 95%);
 }
 
 .line-cinematic-beam-haze {
-  width: 52px;
-  background: linear-gradient(to top, rgba(243, 92, 79, calc(0.16 * var(--find-intensity))), rgba(243, 92, 79, 0.035) 62%, transparent);
-  filter: blur(20px);
+  width: 800% !important;
+  background: linear-gradient(to top, rgba(243, 92, 79, 0.2) 0%, rgba(243, 92, 79, 0.05) 30%, transparent 80%) !important;
+  opacity: var(--find-haze-opacity);
+  filter: blur(8px);
 }
 
 .line-cinematic-beam-soft {
-  width: 20px;
-  background: linear-gradient(to top, rgba(255, 121, 104, calc(0.44 * var(--find-intensity))), rgba(243, 92, 79, 0.07) 72%, transparent);
-  filter: blur(7px);
+  width: 300% !important;
+  background: linear-gradient(to top, rgba(243, 92, 79, 0.4) 0%, rgba(243, 92, 79, 0.15) 40%, transparent 90%) !important;
+  filter: blur(3px);
 }
 
 .line-cinematic-beam-core {
-  width: 3px;
-  background: linear-gradient(to top, rgba(255, 237, 213, calc(0.95 * var(--find-intensity))), rgba(255, 126, 107, calc(0.58 * var(--find-intensity))) 52%, transparent);
-  box-shadow: 0 0 8px rgba(255, 151, 130, calc(0.75 * var(--find-intensity)));
-  filter: blur(0.45px);
+  width: 100% !important;
+  background: linear-gradient(to top, rgba(255, 230, 215, 0.9) 0%, rgba(243, 92, 79, 0.8) 10%, transparent 95%) !important;
+  opacity: var(--find-core-opacity);
+  box-shadow: 0 0 15px rgba(243, 92, 79, 0.5);
 }
 
 .line-cinematic-beam-glow {
-  width: 8px;
-  background: linear-gradient(to top, rgba(255, 203, 176, calc(0.7 * var(--find-intensity))), rgba(243, 92, 79, 0.06) 74%, transparent);
-  filter: blur(2px);
+  width: 180% !important;
+  background: linear-gradient(to top, rgba(243, 92, 79, 0.6) 0%, rgba(243, 92, 79, 0.3) 25%, transparent 90%) !important;
 }
 
 .line-cinematic-particles {
-  width: 38px;
-  opacity: calc(0.5 * var(--find-intensity));
-  background-image:
-    radial-gradient(circle, rgba(255, 226, 198, 0.85) 0 1px, transparent 1.4px),
-    radial-gradient(circle, rgba(243, 92, 79, 0.7) 0 0.8px, transparent 1.2px);
-  background-position: 7px 88%, 24px 68%;
-  background-size: 23px 47px, 31px 71px;
-  animation: line-find-particles 5s linear infinite;
-  mask-image: linear-gradient(to top, #000, transparent 72%);
+  width: 250% !important;
+  background: transparent !important;
+  background-image: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.4) 1px, transparent 2px),
+                    radial-gradient(circle at 30% 60%, rgba(255, 255, 255, 0.3) 1px, transparent 2px),
+                    radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.5) 1.5px, transparent 2px) !important;
+  background-size: 44px 132px !important;
+  opacity: calc(var(--find-core-opacity) * 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line-cinematic-particles {
+    display: none;
+  }
+}
+
+.line-confidence-low .line-cinematic-beam-pair {
+  filter: blur(0.55px);
+}
+
+.line-confidence-medium .line-cinematic-beam-pair {
+  filter: blur(0.2px);
+}
+
+.line-cinematic-line-pulse .line-cinematic-beam-pair {
+  animation: line-cinematic-pulse 2.2s cubic-bezier(0.2, 0, 0.4, 1) infinite;
+}
+
+@keyframes line-cinematic-pulse {
+  0% { transform: scale(var(--find-scale-x), var(--find-scale-y)); }
+  50% { transform: scale(calc(var(--find-scale-x) * 1.1), calc(var(--find-scale-y) * 1.05)); }
+  100% { transform: scale(var(--find-scale-x), var(--find-scale-y)); }
+}
+
+.line-cinematic-line-unlocked .line-cinematic-beam-core {
+  background: linear-gradient(to top, #ffffff 0%, rgba(255, 230, 215, 0.9) 15%, transparent 100%) !important;
+  opacity: 1;
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.6), 0 0 60px rgba(243, 92, 79, 0.4);
+}
+
+.line-cinematic-line-unlocked .line-cinematic-base-glow {
+  background: radial-gradient(ellipse at bottom center, rgba(255, 255, 255, 0.7), rgba(243, 92, 79, 0.9) 20%, transparent 75%);
+  animation: line-unlocked-bloom 3s ease-in-out infinite alternate;
+}
+
+@keyframes line-unlocked-bloom {
+  0% { transform: scale(var(--find-scale-x), var(--find-scale-y)); opacity: 0.8; }
+  100% { transform: scale(calc(var(--find-scale-x) * 1.1), calc(var(--find-scale-y) * 1.1)); opacity: 1; }
 }
 
 .line-cinematic-caption {
   position: absolute;
-  z-index: 7;
-  bottom: 1%;
-  left: 50%;
-  display: flex;
-  min-width: 120px;
-  align-items: center;
-  flex-direction: column;
-  gap: 6px;
-  color: var(--line-paper);
-  transform: translateX(-50%);
-  pointer-events: auto;
+  bottom: -60px;
   text-align: center;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.92);
+  width: 240px;
+  pointer-events: auto;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: var(--find-beam-opacity);
+  transition: opacity 160ms ease;
 }
 
 .line-cinematic-caption strong {
+  display: inline-block;
   font-size: 1.1rem;
-  font-weight: 400;
+  color: var(--line-paper);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.8);
 }
 
 .line-cinematic-caption > span {
+  display: block;
   color: rgba(232, 223, 209, 0.6);
   font-size: 0.4rem;
 }
@@ -3807,32 +3895,12 @@ a:focus-visible {
   color: var(--line-paper);
   font-size: 0.48rem;
   backdrop-filter: blur(9px);
+  transition: background 200ms ease, border-color 200ms ease;
 }
 
-.line-cinematic-line-unlocked .line-cinematic-atmosphere {
-  background: radial-gradient(ellipse, rgba(232, 223, 209, 0.4), rgba(243, 92, 79, 0.16) 38%, transparent 70%);
-}
-
-.line-cinematic-line-unlocked .line-cinematic-beam-core {
-  background: linear-gradient(to top, #fff8e9, rgba(255, 231, 205, 0.82) 58%, transparent);
-  box-shadow: 0 0 11px rgba(255, 245, 226, 0.92);
-}
-
-.line-cinematic-line-unlocked .line-cinematic-beam-soft {
-  background: linear-gradient(to top, rgba(255, 247, 231, 0.75), rgba(243, 92, 79, 0.13) 72%, transparent);
-}
-
-.line-cinematic-line-pulse::before {
-  position: absolute;
-  z-index: -1;
-  right: -35%;
-  bottom: -3%;
-  left: -35%;
-  height: 48%;
-  border: 1px solid rgba(255, 245, 226, 0.66);
-  border-radius: 50%;
-  content: '';
-  animation: line-find-unlock-pulse 1.8s cubic-bezier(0.2, 0.65, 0.25, 1) both;
+.line-cinematic-open:hover {
+  border-color: var(--line-paper);
+  background: rgba(15, 13, 12, 0.72);
 }
 
 .line-find-controls {
@@ -4004,6 +4072,12 @@ a:focus-visible {
   .line-cinematic-particles,
   .line-cinematic-line-pulse::before {
     display: none;
+    animation: none !important;
+  }
+
+  .line-cinematic-line-pulse .line-cinematic-beam-pair,
+  .line-cinematic-line-unlocked .line-cinematic-base-glow {
+    animation: none;
   }
 
   .line-find-calibration > small {

@@ -20,6 +20,7 @@ import {
 } from '@/hooks/useOrientationController';
 import type { NearbyLetter } from '@/services/discovery';
 import { playFindSound } from '@/services/findSound';
+import { getSpatialLineMetrics } from '@/services/spatialLine';
 
 type CameraState = 'prompt' | 'requesting' | 'granted' | 'denied' | 'simulated';
 
@@ -53,7 +54,7 @@ function signalIntensity(distanceMeters: number, isUnlocked: boolean) {
   if (distanceMeters <= 20) return 0.62;
   if (distanceMeters <= 30) return 0.4;
   if (distanceMeters <= 50) return 0.2;
-  return Math.max(0.035, (100 - distanceMeters) / 500);
+  return Math.max(0.1, (100 - distanceMeters) / 500);
 }
 
 function triggerHaptic(level: 'approaching' | 'near' | 'unlocked') {
@@ -74,6 +75,10 @@ export function CameraView({
   const [cameraState, setCameraState] = useState<CameraState>('prompt');
   const [manualHeading, setManualHeading] = useState(0);
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
+  const [isNight, setIsNight] = useState(() => {
+    const hour = new Date().getHours();
+    return hour < 6 || hour >= 18;
+  });
   const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
   const [simulatedDistance, setSimulatedDistance] = useState<(typeof SIMULATED_DISTANCES)[number]>(50);
@@ -220,6 +225,15 @@ export function CameraView({
       stopCamera();
     };
   }, [stopCamera]);
+
+  useEffect(() => {
+    const updateAmbientMode = () => {
+      const hour = new Date().getHours();
+      setIsNight(hour < 6 || hour >= 18);
+    };
+    const interval = window.setInterval(updateAmbientMode, 5 * 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (cameraState !== 'granted' || !cameraViewVisible) return;
@@ -436,6 +450,16 @@ export function CameraView({
     && sensorHeadingAvailable
     && directionalConfidence === 'low'
     && !gpsDirectionUncertain;
+  const primaryVisualIntensity = primarySignal
+    ? signalIntensity(primarySignal.distanceMeters, primarySignal.isUnlocked)
+    : null;
+  const primaryVisualScale = primarySignal && primaryVisualIntensity !== null
+    ? getSpatialLineMetrics(
+      primarySignal.distanceMeters,
+      0.78 + primaryVisualIntensity * 0.3,
+      isNight,
+    )
+    : null;
   const primaryStatus = locationUnavailable
     ? ['LOCATION NEEDED', 'Enable location to discover nearby letters.']
     : networkError
@@ -494,11 +518,23 @@ export function CameraView({
 
         {visualSignals.map((signal, index) => {
           const difference = signedAngleDifference(signal.bearingDegrees, visualHeading);
-          const edgeVisibility = Math.max(0, 1 - Math.max(0, Math.abs(difference) - 38) / 18);
+          const absDiff = Math.abs(difference);
+          const beamVisibility = Math.max(0, 1 - Math.max(0, absDiff - 35) / 40);
+          const atmosphereVisibility = absDiff <= 35
+            ? 1
+            : 1 - Math.min(1, (absDiff - 35) / 145) * 0.92;
+          const clampedDifference = Math.max(-70, Math.min(70, difference));
+
           const intensity = signalIntensity(signal.distanceMeters, signal.isUnlocked);
           const secondary = index > 0;
+          const tertiary = index > 1;
           const confidenceMovement = directionalConfidence === 'low' ? 0.62 : directionalConfidence === 'medium' ? 0.86 : 1;
           const confidenceOpacity = directionalConfidence === 'low' ? 0.64 : directionalConfidence === 'medium' ? 0.84 : 1;
+          const prominenceOpacity = index === 0 ? 1 : index === 1 ? 0.42 : 0.24;
+          const prominenceScale = index === 0 ? 1 : index === 1 ? 0.82 : 0.68;
+          const beamOpacity = beamVisibility * intensity * confidenceOpacity * prominenceOpacity;
+          const atmosphereOpacity = atmosphereVisibility * confidenceOpacity * prominenceOpacity;
+
           return (
             <CinematicLine
               key={signal.id}
@@ -507,11 +543,15 @@ export function CameraView({
               bearing={signal.bearingDegrees}
               isUnlocked={signal.isUnlocked}
               intensity={intensity}
-              opacity={edgeVisibility * intensity * confidenceOpacity * (secondary ? 0.42 : 1)}
-              scale={(0.78 + intensity * 0.3) * (secondary ? 0.82 : 1)}
-              horizontalPosition={50 + difference * 1.05 * confidenceMovement}
+              beamOpacity={beamOpacity}
+              atmosphereOpacity={atmosphereOpacity}
+              scale={(0.78 + intensity * 0.3) * prominenceScale}
+              horizontalPosition={50 + clampedDifference * 1.2 * confidenceMovement}
               secondary={secondary}
+              tertiary={tertiary}
               pulse={signal.id === pulseLetterId}
+              confidence={directionalConfidence}
+              isNight={isNight}
               onOpen={signal.source?.isUnlocked ? () => setSelectedLetterId(signal.source!.id) : undefined}
             />
           );
@@ -608,6 +648,7 @@ export function CameraView({
               <div><dt>Heading</dt><dd>{Math.round(visualHeading)}°</dd></div>
               <div><dt>Raw / smooth</dt><dd>{cameraState === 'simulated' ? `${Math.round(simulatedHeading)}° / ${Math.round(simulatedHeading)}°` : `${orientation.diagnostics.rawHeading === null ? '—' : `${Math.round(orientation.diagnostics.rawHeading)}°`} / ${orientation.heading === null ? '—' : `${Math.round(orientation.heading)}°`}`}</dd></div>
               <div><dt>Bearing / delta</dt><dd>{simulatedBearing}° / {Math.round(signedAngleDifference(simulatedBearing, visualHeading))}°</dd></div>
+              <div><dt>Intensity / Scale</dt><dd>{primaryVisualIntensity !== null && primaryVisualScale ? `${(primaryVisualIntensity * 100).toFixed(0)}% / ${(primaryVisualScale.scaleX * 100).toFixed(0)}×${(primaryVisualScale.scaleY * 100).toFixed(0)}%` : '—'}</dd></div>
               <div><dt>GPS / age</dt><dd>{location.location ? `±${Math.round(location.location.accuracy)}m / ${Math.round((orientation.locationAgeMs ?? 0) / 1000)}s` : 'Unavailable'}</dd></div>
               <div><dt>Sensors</dt><dd>{orientation.diagnostics.orientationAvailable ? 'Orientation' : 'Touch'} · {orientation.diagnostics.motionAvailable ? 'Motion' : 'No motion'}</dd></div>
               <div><dt>Screen</dt><dd>{orientation.diagnostics.screenOrientation}°</dd></div>

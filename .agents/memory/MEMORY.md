@@ -4,3 +4,4 @@
 - [Spatial signal visibility](spatial-signal-visibility.md) — directional beam fade and edge atmosphere need independent opacity; motion must never override either curve.
 - [World AR scope](world-ar-scope.md) — browser AR is session-local on supported Android Chrome; iOS stays sensor-spatial, and north alignment requires the first real XR pose.
 - [FIND spatial audio scope](find-spatial-audio-scope.md) — audio stays bearing-based and confidence-limited; visual direction is authoritative, with centered atmosphere when direction is untrusted.
+- [Spatial discovery privacy](spatial-discovery-privacy.md) — replayable handles must return fixed-cell snapshots, never caller-dependent target observations.

@@ -2053,6 +2053,108 @@ a:focus-visible {
   white-space: nowrap;
 }
 
+.line-field-signal {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 9px;
+  color: var(--line-paper);
+  transform: translate(-50%, -75%);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.line-field-signal:hover,
+.line-field-signal:focus-visible {
+  transform: translate(-50%, -75%) scale(1.06);
+}
+
+.line-field-signal-beams {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  filter: drop-shadow(0 0 8px rgba(243, 92, 79, 0.48));
+}
+
+.line-field-signal-beams i {
+  display: block;
+  width: 2px;
+  height: 38px;
+  background: linear-gradient(transparent, var(--line-coral) 38%, var(--line-paper));
+  box-shadow: 0 0 7px rgba(243, 92, 79, 0.58);
+}
+
+.line-field-signal-beams i:last-child {
+  height: 31px;
+  opacity: 0.78;
+}
+
+.line-field-signal-secondary {
+  opacity: 0.72;
+}
+
+.line-field-signal-tertiary {
+  opacity: 0.46;
+}
+
+.line-field-signal-paper .line-field-signal-beams i,
+.line-field-signal-found .line-field-signal-beams i {
+  background: linear-gradient(transparent, rgba(232, 223, 209, 0.5), var(--line-paper));
+}
+
+.line-field-signal-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  color: var(--line-ash);
+  font-size: 0.44rem;
+  white-space: nowrap;
+}
+
+.line-field-signal-label span {
+  color: var(--line-paper);
+}
+
+.line-card-meta-spatial {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.line-card-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.line-card-lifecycle {
+  color: var(--line-ash);
+  font-size: 0.9em;
+}
+
+.line-card-meta-spatial + .line-card-open {
+  margin-top: 16px;
+}
+
+.line-card-resolution-error {
+  margin-top: 13px;
+  border-left: 1px solid rgba(243, 92, 79, 0.58);
+  padding: 2px 0 2px 10px;
+  color: var(--line-ash);
+  font-size: 0.6rem;
+  line-height: 1.35;
+}
+
+.line-card-open:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .line-marker-letter-label {
   color: var(--line-ash);
   font-size: 0.42rem;

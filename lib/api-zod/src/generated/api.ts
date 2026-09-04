@@ -109,15 +109,14 @@ export const getNearbyLineLettersQueryLatitudeMax = 90;
 export const getNearbyLineLettersQueryLongitudeMin = -180;
 export const getNearbyLineLettersQueryLongitudeMax = 180;
 
-export const getNearbyLineLettersQueryRadiusDefault = 100;
-export const getNearbyLineLettersQueryRadiusMax = 100;
+export const getNearbyLineLettersQueryTargetHandleMax = 512;
 
 
 
 export const GetNearbyLineLettersQueryParams = zod.object({
   "latitude": zod.coerce.number().min(getNearbyLineLettersQueryLatitudeMin).max(getNearbyLineLettersQueryLatitudeMax),
   "longitude": zod.coerce.number().min(getNearbyLineLettersQueryLongitudeMin).max(getNearbyLineLettersQueryLongitudeMax),
-  "radius": zod.coerce.number().min(1).max(getNearbyLineLettersQueryRadiusMax).default(getNearbyLineLettersQueryRadiusDefault)
+  "targetHandle": zod.coerce.string().min(1).max(getNearbyLineLettersQueryTargetHandleMax)
 })
 
 export const getNearbyLineLettersResponseDistanceMetersMin = 0;
@@ -143,6 +142,66 @@ export const GetNearbyLineLettersResponseItem = zod.object({
 export const GetNearbyLineLettersResponse = zod.array(GetNearbyLineLettersResponseItem)
 
 
+/**
+ * Privacy-preserving active signal field derived from a fixed, coarse spatial cell and LINE discovery ranking.
+ */
+export const getLineSignalFieldQueryLatitudeMin = -90;
+export const getLineSignalFieldQueryLatitudeMax = 90;
+
+export const getLineSignalFieldQueryLongitudeMin = -180;
+export const getLineSignalFieldQueryLongitudeMax = 180;
+
+
+
+export const GetLineSignalFieldQueryParams = zod.object({
+  "latitude": zod.coerce.number().min(getLineSignalFieldQueryLatitudeMin).max(getLineSignalFieldQueryLatitudeMax),
+  "longitude": zod.coerce.number().min(getLineSignalFieldQueryLongitudeMin).max(getLineSignalFieldQueryLongitudeMax)
+})
+
+export const getLineSignalFieldResponseHandleMax = 512;
+
+
+
+export const GetLineSignalFieldResponseItem = zod.object({
+  "handle": zod.string().min(1).max(getLineSignalFieldResponseHandleMax).describe('Opaque, short-lived, user-bound handle used only to request FIND target revalidation.'),
+  "hierarchy": zod.enum(['primary', 'secondary', 'tertiary']).describe('Existing discovery prominence after coarse nearest-first ranking.'),
+  "distanceBand": zod.enum(['close', 'local', 'distant']),
+  "bearingSector": zod.enum(['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']),
+  "availability": zod.enum(['active']).describe('The signal was active when this coarse field snapshot was issued. It never implies proximity unlock.'),
+  "lifecycleKind": zod.enum(['free', 'premium', 'permanent']),
+  "timeRemaining": zod.union([zod.literal('under_1_day'),zod.literal('under_7_days'),zod.literal('under_30_days'),zod.literal('under_60_days'),zod.literal(null)]).nullable().describe('Coarse active lifetime; null only for permanent signals.')
+})
+export const GetLineSignalFieldResponse = zod.array(GetLineSignalFieldResponseItem).max(18)
+
+
+/**
+ * Revalidates a short-lived signal-field handle before entering FIND. This does not unlock letter content.
+ */
+export const resolveLineSignalBodyHandleMax = 512;
+
+export const resolveLineSignalBodyLatitudeMin = -90;
+export const resolveLineSignalBodyLatitudeMax = 90;
+
+export const resolveLineSignalBodyLongitudeMin = -180;
+export const resolveLineSignalBodyLongitudeMax = 180;
+
+
+
+export const ResolveLineSignalBody = zod.object({
+  "handle": zod.string().min(1).max(resolveLineSignalBodyHandleMax),
+  "latitude": zod.number().min(resolveLineSignalBodyLatitudeMin).max(resolveLineSignalBodyLatitudeMax),
+  "longitude": zod.number().min(resolveLineSignalBodyLongitudeMin).max(resolveLineSignalBodyLongitudeMax)
+})
+
+export const resolveLineSignalResponseTargetHandleMax = 512;
+
+
+
+export const ResolveLineSignalResponse = zod.object({
+  "targetHandle": zod.string().min(1).max(resolveLineSignalResponseTargetHandleMax).describe('Opaque, expiring FIND capability. The underlying letter identifier is never exposed to the browser.')
+})
+
+
 export const getMyLineLettersResponseTwoReplyCountMin = 0;
 
 
@@ -164,7 +223,7 @@ export const GetMyLineLettersResponseItem = zod.object({
 export const GetMyLineLettersResponse = zod.array(GetMyLineLettersResponseItem)
 
 
-export const getLineLetterPathLetterIdMax = 128;
+export const getLineLetterPathLetterIdMax = 512;
 
 
 
@@ -178,11 +237,18 @@ export const getLineLetterQueryLatitudeMax = 90;
 export const getLineLetterQueryLongitudeMin = -180;
 export const getLineLetterQueryLongitudeMax = 180;
 
+export const getLineLetterQueryAccuracyMin = 0;
+export const getLineLetterQueryAccuracyMax = 25;
+
+export const getLineLetterQueryObservedAtMin = 0;
+
 
 
 export const GetLineLetterQueryParams = zod.object({
   "latitude": zod.coerce.number().min(getLineLetterQueryLatitudeMin).max(getLineLetterQueryLatitudeMax),
-  "longitude": zod.coerce.number().min(getLineLetterQueryLongitudeMin).max(getLineLetterQueryLongitudeMax)
+  "longitude": zod.coerce.number().min(getLineLetterQueryLongitudeMin).max(getLineLetterQueryLongitudeMax),
+  "accuracy": zod.coerce.number().min(getLineLetterQueryAccuracyMin).max(getLineLetterQueryAccuracyMax),
+  "observedAt": zod.coerce.number().min(getLineLetterQueryObservedAtMin)
 })
 
 export const getLineLetterResponseDistanceMetersMin = 0;
@@ -202,7 +268,7 @@ export const GetLineLetterResponse = zod.object({
 })
 
 
-export const getRepliesForLetterPathLetterIdMax = 128;
+export const getRepliesForLetterPathLetterIdMax = 512;
 
 
 
@@ -237,7 +303,7 @@ export const GetRepliesForLetterResponseItem = zod.object({
 export const GetRepliesForLetterResponse = zod.array(GetRepliesForLetterResponseItem)
 
 
-export const createLineReplyPathLetterIdMax = 128;
+export const createLineReplyPathLetterIdMax = 512;
 
 
 
@@ -309,7 +375,7 @@ export const GetMyLineRepliesResponseItem = zod.object({
 export const GetMyLineRepliesResponse = zod.array(GetMyLineRepliesResponseItem)
 
 
-export const revealLineIdentityPathLetterIdMax = 128;
+export const revealLineIdentityPathLetterIdMax = 512;
 
 
 

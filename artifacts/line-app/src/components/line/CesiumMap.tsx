@@ -1,32 +1,50 @@
 import * as Cesium from 'cesium';
 import { useEffect, useRef, useState } from 'react';
 import type { LocationData } from '@/hooks/useLocation';
-import type { NearbyLetter } from '@/services/discovery';
+import type { SignalFieldRecord } from '@workspace/api-client-react';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 
 type CesiumMapProps = {
   location: LocationData | null;
-  letters: NearbyLetter[];
-  onSelect: (letterId: string) => void;
+  signals: SignalFieldRecord[];
+  onSelect: (signalId: string) => void;
   onUnavailable: () => void;
 };
 
 const ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
 const ION_ASSET_ID = import.meta.env.VITE_CESIUM_ION_ASSET_ID as string | undefined;
 
-function makeSignalPosition(letter: NearbyLetter, location: LocationData) {
-  // The API withholds exact coordinates. It returns only a coarse,
-  // privacy-preserving bearing and the server-computed distance.
-  const bearing = letter.bearingDegrees * (Math.PI / 180);
-  const north = Math.cos(bearing) * letter.distanceMeters;
-  const east = Math.sin(bearing) * letter.distanceMeters;
+const bands: Record<string, number[]> = { close: [7, 12], local: [20, 48], distant: [58, 96] };
+const sectors: Record<string, number> = { n: 0, ne: 45, e: 90, se: 135, s: 180, sw: 225, w: 270, nw: 315 };
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function makeSignalVisuals(signal: SignalFieldRecord, location: LocationData) {
+  const hash = hashString(signal.handle);
+  const band = bands[signal.distanceBand] || bands.distant;
+
+  const distance = band[0] + (hash % 1000) / 1000 * (band[1] - band[0]);
+  const baseAngle = sectors[signal.bearingSector] || 0;
+  const angleOffset = -22.5 + ((hash >> 4) % 1000) / 1000 * 45;
+  const bearing = (baseAngle + angleOffset) * (Math.PI / 180);
+
+  const north = Math.cos(bearing) * distance;
+  const east = Math.sin(bearing) * distance;
   const latitude = location.latitude + north / 111_320;
   const longitudeScale = Math.max(0.01, Math.cos((location.latitude * Math.PI) / 180));
   const longitude = location.longitude + east / (111_320 * longitudeScale);
-  return Cesium.Cartesian3.fromDegrees(longitude, latitude, 8);
+
+  return { latitude, longitude, distance };
 }
 
-export function CesiumMap({ location, letters, onSelect, onUnavailable }: CesiumMapProps) {
+export function CesiumMap({ location, signals, onSelect, onUnavailable }: CesiumMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const creditsRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
@@ -81,6 +99,9 @@ export function CesiumMap({ location, letters, onSelect, onUnavailable }: Cesium
       viewer.scene.screenSpaceCameraController.enableTilt = true;
       viewer.scene.screenSpaceCameraController.enableRotate = true;
       viewer.scene.globe.enableLighting = false;
+      viewer.scene.globe.showGroundAtmosphere = true;
+      viewer.scene.fog.enabled = true;
+      viewer.scene.fog.density = 0.0012;
       viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#11100f');
       removeRenderErrorListener = viewer.scene.renderError.addEventListener(() => {
         setInitializationError('The 3D view stopped unexpectedly.');
@@ -93,7 +114,10 @@ export function CesiumMap({ location, letters, onSelect, onUnavailable }: Cesium
         maximumLevel: 19,
       });
       imageryProvider.errorEvent.addEventListener(() => onUnavailable());
-      viewer.imageryLayers.addImageryProvider(imageryProvider);
+      const imageryLayer = viewer.imageryLayers.addImageryProvider(imageryProvider);
+      imageryLayer.brightness = 0.2;
+      imageryLayer.saturation = 0.15;
+      imageryLayer.contrast = 1.2;
 
       if (ION_TOKEN && ION_ASSET_ID) {
         void Cesium.Cesium3DTileset.fromIonAssetId(Number(ION_ASSET_ID))
@@ -109,7 +133,7 @@ export function CesiumMap({ location, letters, onSelect, onUnavailable }: Cesium
         const picked = viewer.scene.pick(movement.position);
         const pickedEntity = picked?.id;
         const pickedId = pickedEntity instanceof Cesium.Entity
-          ? pickedEntity.properties?.lineLetterId?.getValue(Cesium.JulianDate.now())
+          ? pickedEntity.properties?.lineSignalHandle?.getValue(Cesium.JulianDate.now())
           : null;
         if (typeof pickedId === 'string') onSelect(pickedId);
       }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -138,22 +162,18 @@ export function CesiumMap({ location, letters, onSelect, onUnavailable }: Cesium
       youEntityRef.current = viewer.entities.add({
         position: youPosition,
         point: {
-          pixelSize: 10,
-          color: Cesium.Color.fromCssColorString('#f35c4f'),
-          outlineColor: Cesium.Color.fromCssColorString('#f3e9d8'),
-          outlineWidth: 2,
+          pixelSize: 6,
+          color: Cesium.Color.fromCssColorString('#ffffff').withAlpha(0.9),
+          outlineColor: Cesium.Color.fromCssColorString('#f35c4f').withAlpha(0.6),
+          outlineWidth: 4,
           heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
         },
-        label: {
-          text: 'YOU',
-          font: '10px monospace',
-          fillColor: Cesium.Color.fromCssColorString('#f3e9d8'),
-          pixelOffset: new Cesium.Cartesian2(0, -20),
-          style: Cesium.LabelStyle.FILL,
-          showBackground: true,
-          backgroundColor: Cesium.Color.fromCssColorString('#11100f').withAlpha(0.85),
-          backgroundPadding: new Cesium.Cartesian2(6, 4),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        ellipse: {
+          semiMinorAxis: 15.0,
+          semiMajorAxis: 15.0,
+          material: new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString('#f35c4f').withAlpha(0.1)),
+          outline: true,
+          outlineColor: Cesium.Color.fromCssColorString('#f35c4f').withAlpha(0.3),
         },
       });
     } else {
@@ -161,42 +181,77 @@ export function CesiumMap({ location, letters, onSelect, onUnavailable }: Cesium
     }
 
     for (const entity of signalEntitiesRef.current) viewer.entities.remove(entity);
-    signalEntitiesRef.current = letters.map((letter) => viewer.entities.add({
-      position: makeSignalPosition(letter, location),
-      properties: { lineLetterId: letter.id },
-      point: {
-        pixelSize: letter.isUnlocked ? 11 : 8,
-        color: Cesium.Color.fromCssColorString(letter.isUnlocked ? '#f3e9d8' : '#8f877c'),
-        outlineColor: Cesium.Color.fromCssColorString('#f35c4f'),
-        outlineWidth: letter.isUnlocked ? 2 : 1,
-        heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
-      },
-      label: {
-        text: `${letter.isUnlocked ? 'LETTER FOUND' : 'ANONYMOUS LETTER'}  ${letter.distanceLabel}`,
-        font: '9px monospace',
-        fillColor: Cesium.Color.fromCssColorString('#f3e9d8'),
-        pixelOffset: new Cesium.Cartesian2(12, 0),
-        showBackground: true,
-        backgroundColor: Cesium.Color.fromCssColorString('#11100f').withAlpha(0.82),
-        backgroundPadding: new Cesium.Cartesian2(5, 3),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-    }));
+    signalEntitiesRef.current = [];
+
+    for (const signal of signals) {
+      const visual = makeSignalVisuals(signal, location);
+
+      const beamHeight = signal.distanceBand === 'close' ? 28 : signal.distanceBand === 'local' ? 52 : 82;
+      const beamWidth = signal.distanceBand === 'close' ? 0.3 : signal.distanceBand === 'local' ? 0.48 : 0.7;
+
+      const beamColor = '#f35c4f';
+      const alpha = signal.hierarchy === 'primary' ? 0.75 : signal.hierarchy === 'secondary' ? 0.45 : 0.25;
+      const material = Cesium.Color.fromCssColorString(beamColor).withAlpha(alpha);
+
+      // Create twin vertical beams (left and right)
+      const offset = signal.distanceBand === 'close' ? 0.000004 : signal.distanceBand === 'local' ? 0.000007 : 0.00001;
+
+      const leftBeam = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(visual.longitude - offset, visual.latitude, beamHeight / 2),
+        properties: { lineSignalHandle: signal.handle },
+        cylinder: {
+          length: beamHeight,
+          topRadius: beamWidth,
+          bottomRadius: beamWidth,
+          material,
+        }
+      });
+      const rightBeam = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(visual.longitude + offset, visual.latitude, beamHeight / 2),
+        properties: { lineSignalHandle: signal.handle },
+        cylinder: {
+          length: beamHeight,
+          topRadius: beamWidth,
+          bottomRadius: beamWidth,
+          material,
+        }
+      });
+
+      const basePoint = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(visual.longitude, visual.latitude, 2),
+        properties: { lineSignalHandle: signal.handle },
+        point: {
+          pixelSize: signal.hierarchy === 'primary' ? 6 : 4,
+          color: Cesium.Color.fromCssColorString(beamColor).withAlpha(0.9),
+          outlineColor: Cesium.Color.fromCssColorString('#f3e9d8').withAlpha(0.5),
+          outlineWidth: 1,
+          heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+        },
+      });
+
+      signalEntitiesRef.current.push(leftBeam, rightBeam, basePoint);
+    }
+
     viewer.scene.requestRender();
-  }, [location, letters]);
+  }, [location, signals]);
 
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed() || !location) return;
-    viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(location.longitude, location.latitude, Math.max(650, location.accuracy * 3)),
-      orientation: {
-        heading: 0,
-        pitch: -Cesium.Math.PI_OVER_TWO,
-        roll: 0,
+    const origin = Cesium.Cartesian3.fromDegrees(location.longitude, location.latitude, 0);
+    const range = Math.max(150, Math.min(280, location.accuracy * 3));
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      viewer.camera.lookAt(origin, new Cesium.HeadingPitchRange(0.35, -0.72, range));
+      return;
+    }
+    void viewer.camera.flyToBoundingSphere(
+      new Cesium.BoundingSphere(origin, 1),
+      {
+        offset: new Cesium.HeadingPitchRange(0.35, -0.72, range),
+        duration: 0.8,
       },
-      duration: 0.8,
-    });
+    );
   }, [location?.timestamp]);
 
   return (

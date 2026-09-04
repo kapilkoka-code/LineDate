@@ -152,6 +152,122 @@ export interface NearbyLetterRecord {
   bearingDegrees: number;
 }
 
+/**
+ * Existing discovery prominence after coarse nearest-first ranking.
+ */
+export type SignalFieldRecordHierarchy = typeof SignalFieldRecordHierarchy[keyof typeof SignalFieldRecordHierarchy];
+
+
+export const SignalFieldRecordHierarchy = {
+  primary: 'primary',
+  secondary: 'secondary',
+  tertiary: 'tertiary',
+} as const;
+
+export type SignalFieldRecordDistanceBand = typeof SignalFieldRecordDistanceBand[keyof typeof SignalFieldRecordDistanceBand];
+
+
+export const SignalFieldRecordDistanceBand = {
+  close: 'close',
+  local: 'local',
+  distant: 'distant',
+} as const;
+
+export type SignalFieldRecordBearingSector = typeof SignalFieldRecordBearingSector[keyof typeof SignalFieldRecordBearingSector];
+
+
+export const SignalFieldRecordBearingSector = {
+  n: 'n',
+  ne: 'ne',
+  e: 'e',
+  se: 'se',
+  s: 's',
+  sw: 'sw',
+  w: 'w',
+  nw: 'nw',
+} as const;
+
+/**
+ * The signal was active when this coarse field snapshot was issued. It never implies proximity unlock.
+ */
+export type SignalFieldRecordAvailability = typeof SignalFieldRecordAvailability[keyof typeof SignalFieldRecordAvailability];
+
+
+export const SignalFieldRecordAvailability = {
+  active: 'active',
+} as const;
+
+export type SignalFieldRecordLifecycleKind = typeof SignalFieldRecordLifecycleKind[keyof typeof SignalFieldRecordLifecycleKind];
+
+
+export const SignalFieldRecordLifecycleKind = {
+  free: 'free',
+  premium: 'premium',
+  permanent: 'permanent',
+} as const;
+
+/**
+ * Coarse active lifetime; null only for permanent signals.
+ * @nullable
+ */
+export type SignalFieldRecordTimeRemaining = typeof SignalFieldRecordTimeRemaining[keyof typeof SignalFieldRecordTimeRemaining] | null;
+
+
+export const SignalFieldRecordTimeRemaining = {
+  under_1_day: 'under_1_day',
+  under_7_days: 'under_7_days',
+  under_30_days: 'under_30_days',
+  under_60_days: 'under_60_days',
+} as const;
+
+export interface SignalFieldRecord {
+  /**
+     * Opaque, short-lived, user-bound handle used only to request FIND target revalidation.
+     * @minLength 1
+     * @maxLength 512
+     */
+  handle: string;
+  /** Existing discovery prominence after coarse nearest-first ranking. */
+  hierarchy: SignalFieldRecordHierarchy;
+  distanceBand: SignalFieldRecordDistanceBand;
+  bearingSector: SignalFieldRecordBearingSector;
+  /** The signal was active when this coarse field snapshot was issued. It never implies proximity unlock. */
+  availability: SignalFieldRecordAvailability;
+  lifecycleKind: SignalFieldRecordLifecycleKind;
+  /**
+     * Coarse active lifetime; null only for permanent signals.
+     * @nullable
+     */
+  timeRemaining: SignalFieldRecordTimeRemaining;
+}
+
+export interface SignalResolutionRequest {
+  /**
+     * @minLength 1
+     * @maxLength 512
+     */
+  handle: string;
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  latitude: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  longitude: number;
+}
+
+export interface ResolvedSignalTarget {
+  /**
+     * Opaque, expiring FIND capability. The underlying letter identifier is never exposed to the browser.
+     * @minLength 1
+     * @maxLength 512
+     */
+  targetHandle: string;
+}
+
 export type UnlockedLetterRecordVisibility = typeof UnlockedLetterRecordVisibility[keyof typeof UnlockedLetterRecordVisibility];
 
 
@@ -329,10 +445,23 @@ latitude: number;
  */
 longitude: number;
 /**
- * @minimum 1
- * @maximum 100
+ * @minLength 1
+ * @maxLength 512
  */
-radius?: number;
+targetHandle: string;
+};
+
+export type GetLineSignalFieldParams = {
+/**
+ * @minimum -90
+ * @maximum 90
+ */
+latitude: number;
+/**
+ * @minimum -180
+ * @maximum 180
+ */
+longitude: number;
 };
 
 export type GetLineLetterParams = {
@@ -346,6 +475,15 @@ latitude: number;
  * @maximum 180
  */
 longitude: number;
+/**
+ * @minimum 0
+ * @maximum 25
+ */
+accuracy: number;
+/**
+ * @minimum 0
+ */
+observedAt: number;
 };
 
 export type GetRepliesForLetterParams = {

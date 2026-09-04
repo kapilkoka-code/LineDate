@@ -21,6 +21,47 @@ function toRadians(value: number) {
   return (value * Math.PI) / 180;
 }
 
+function toDegrees(value: number) {
+  return (value * 180) / Math.PI;
+}
+
+function syntheticTarget(
+  origin: Pick<LocationData, 'latitude' | 'longitude'>,
+  distanceMeters: number,
+  bearingDegrees: number,
+) {
+  const angularDistance = distanceMeters / 6_371_000;
+  const bearing = toRadians(bearingDegrees);
+  const latitude = toRadians(origin.latitude);
+  const longitude = toRadians(origin.longitude);
+  const destinationLatitude = Math.asin(
+    Math.sin(latitude) * Math.cos(angularDistance)
+    + Math.cos(latitude) * Math.sin(angularDistance) * Math.cos(bearing),
+  );
+  const destinationLongitude = longitude + Math.atan2(
+    Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latitude),
+    Math.cos(angularDistance) - Math.sin(latitude) * Math.sin(destinationLatitude),
+  );
+  return {
+    latitude: toDegrees(destinationLatitude),
+    longitude: toDegrees(destinationLongitude),
+  };
+}
+
+function bearingBetweenLocations(
+  origin: Pick<LocationData, 'latitude' | 'longitude'>,
+  destination: Pick<LocationData, 'latitude' | 'longitude'>,
+) {
+  const startLatitude = toRadians(origin.latitude);
+  const endLatitude = toRadians(destination.latitude);
+  const longitudeDelta = toRadians(destination.longitude - origin.longitude);
+  const y = Math.sin(longitudeDelta) * Math.cos(endLatitude);
+  const x =
+    Math.cos(startLatitude) * Math.sin(endLatitude)
+    - Math.sin(startLatitude) * Math.cos(endLatitude) * Math.cos(longitudeDelta);
+  return (toDegrees(Math.atan2(y, x)) + 360) % 360;
+}
+
 export function distanceBetweenLocations(
   origin: Pick<LocationData, 'latitude' | 'longitude'>,
   destination: Pick<LocationData, 'latitude' | 'longitude'>,
@@ -50,8 +91,9 @@ function formatDistance(distanceMeters: number) {
 }
 
 export function getNearbyLetters(
-  _currentLocation: LocationData | null,
+  currentLocation: LocationData | null,
   letters: NearbyLetterRecord[],
+  guidanceOrigin?: Pick<LocationData, 'latitude' | 'longitude'> | null,
 ): NearbyLetter[] {
   const markerPositions = [
     { top: '30%', left: '22%', tone: 'coral' as const },
@@ -63,8 +105,18 @@ export function getNearbyLetters(
 
   return letters
     .filter((letter) => letter.distanceMeters <= DISCOVERY_RANGE_METERS)
-    .map((letter) => ({
-      letter: {
+    .map((letter) => {
+      const target = currentLocation && guidanceOrigin
+        ? syntheticTarget(guidanceOrigin, letter.distanceMeters, letter.bearingDegrees)
+        : null;
+      const displayedDistance = target && currentLocation
+        ? distanceBetweenLocations(currentLocation, target)
+        : letter.distanceMeters;
+      const displayedBearing = target && currentLocation
+        ? bearingBetweenLocations(currentLocation, target)
+        : letter.bearingDegrees;
+      return {
+        letter: {
         id: letter.id,
         text: letter.text ?? '',
         createdAt: letter.createdAt,
@@ -74,10 +126,11 @@ export function getNearbyLetters(
         isOwn: letter.isOwn,
         isUnlocked: letter.isUnlocked,
       },
-      distanceMeters: letter.distanceMeters,
+      distanceMeters: displayedDistance,
       isUnlocked: letter.isUnlocked,
-      bearingDegrees: letter.bearingDegrees,
-    }))
+      bearingDegrees: displayedBearing,
+      };
+    })
     .sort((first, second) => first.distanceMeters - second.distanceMeters)
     .map(({ letter, distanceMeters, bearingDegrees }, index) => {
       const marker = markerPositions[index % markerPositions.length];

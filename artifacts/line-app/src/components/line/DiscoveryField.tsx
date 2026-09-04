@@ -1,37 +1,44 @@
 import { BookOpen, LockKeyhole, RefreshCw, ShieldAlert, X } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
-import type { LocationData, LocationStatus } from '@/hooks/useLocation';
-import { ReplyComposer } from '@/components/line/ReplyComposer';
+import type { ReactNode } from 'react';
+import type { LocationStatus } from '@/hooks/useLocation';
 import { UNLOCK_DISTANCE_METERS, type NearbyLetter } from '@/services/discovery';
 
+import type { SignalFieldRecord } from '@workspace/api-client-react';
+
 type DiscoveryFieldProps = {
-  letters: NearbyLetter[];
-  selectedLetter: NearbyLetter | null;
+  signals: SignalFieldRecord[];
+  selectedSignal: SignalFieldRecord | null;
   locationStatus: LocationStatus;
   locationReady: boolean;
-  currentLocation: LocationData | null;
   locationAccuracy: number | null;
   loading: boolean;
   searching: boolean;
+  error: boolean;
+  resolving: boolean;
+  resolutionError: string | null;
   mapContent?: ReactNode;
   onRefresh: () => void;
-  onSelect: (letter: NearbyLetter) => void;
+  onSelect: (signal: SignalFieldRecord) => void;
   onDismiss: () => void;
+  onNavigateFind: () => void;
 };
 
 function EmptyFieldState({
   locationStatus,
   locationReady,
   searching,
-}: Pick<DiscoveryFieldProps, 'locationStatus' | 'locationReady' | 'searching'>) {
+  error,
+}: Pick<DiscoveryFieldProps, 'locationStatus' | 'locationReady' | 'searching' | 'error'>) {
   const isLoading = searching || locationStatus === 'checking' || locationStatus === 'requesting';
-  const title = searching ? 'SEARCHING NEARBY…' : locationReady ? 'NOTHING HERE' : isLoading ? 'Finding you.' : 'Location needed.';
-  const message = locationReady
+  const title = error ? 'Signal lost.' : searching ? 'SEARCHING NEARBY…' : locationReady ? 'Nothing is waiting here yet.' : isLoading ? 'Finding you.' : 'Location needed.';
+  const message = error
+    ? 'The field could not be read. Try again.'
+    : locationReady
     ? searching ? 'Looking for nearby signals.' : 'Maybe someone will leave something behind.'
     : isLoading
       ? 'Looking for nearby signals.'
       : 'Enable location to find letters around you.';
-  const kicker = searching ? 'DATABASE SEARCH' : locationReady ? 'NO SIGNALS WITHIN 100M' : isLoading ? 'GPS LOADING' : 'DISCOVERY PAUSED';
+  const kicker = error ? 'CONNECTION QUIET' : searching ? 'FIELD SEARCH' : locationReady ? 'NO SIGNALS WITHIN 100M' : isLoading ? 'GPS LOADING' : 'DISCOVERY PAUSED';
 
   return (
     <div className="line-field-empty" data-testid="state-discovery-empty">
@@ -105,64 +112,102 @@ export function LetterReader({
 }
 
 export function DiscoveryField({
-  letters,
-  selectedLetter,
+  signals,
+  selectedSignal,
   locationStatus,
   locationReady,
-  currentLocation,
   locationAccuracy,
   loading,
   searching,
+  error,
+  resolving,
+  resolutionError,
   mapContent,
   onRefresh,
   onSelect,
   onDismiss,
+  onNavigateFind,
 }: DiscoveryFieldProps) {
-  const [readerOpen, setReaderOpen] = useState(false);
-  const [replyOpen, setReplyOpen] = useState(false);
-  const hasResults = locationReady && letters.length > 0;
+  const hasResults = locationReady && signals.length > 0;
 
-  useEffect(() => {
-    setReaderOpen(false);
-    setReplyOpen(false);
-  }, [selectedLetter?.id]);
+  if (selectedSignal) {
+    const distanceLabel = selectedSignal.distanceBand === 'close' ? 'Close' : selectedSignal.distanceBand === 'local' ? 'Nearby' : 'Somewhere around here';
+    const inaccurate = locationAccuracy !== null && locationAccuracy > UNLOCK_DISTANCE_METERS;
 
-  useEffect(() => {
-    if (!selectedLetter?.isUnlocked) setReaderOpen(false);
-  }, [selectedLetter?.isUnlocked]);
-
-  if (readerOpen && selectedLetter?.isUnlocked) {
     return (
-      <section className="line-discovery-field" aria-label="Opened anonymous letter">
-        <LetterReader
-          letter={selectedLetter}
-          locationAccuracy={locationAccuracy}
-          loading={loading}
-          onRefresh={onRefresh}
-          onReply={() => {
-            setReaderOpen(false);
-            setReplyOpen(true);
-          }}
-          onClose={() => setReaderOpen(false)}
-        />
+      <section
+        className={`line-discovery-field line-view-enter ${hasResults ? '' : 'line-discovery-field-empty'} ${mapContent ? 'line-discovery-field-map' : ''}`}
+        aria-label="Nearby anonymous signals"
+      >
+        {mapContent ?? <div className="line-field-grid" aria-hidden="true" />}
+        {!mapContent && <div className="line-field-crosshair line-field-crosshair-top" aria-hidden="true" />}
+        {!mapContent && <div className="line-field-crosshair line-field-crosshair-bottom" aria-hidden="true" />}
+
+        <div className="line-letter-card line-view-enter" data-testid="card-selected-letter">
+          <button type="button" className="line-card-close" onClick={onDismiss} aria-label="Close signal preview" data-testid="button-dismiss-letter">
+            <X size={15} />
+          </button>
+          <span className="line-mono line-card-kicker">ACTIVE SIGNAL</span>
+          <div className="line-card-title line-serif">{distanceLabel}</div>
+          <div className="line-card-meta line-card-meta-spatial line-mono">
+            <div className="line-card-meta-row">
+              <span>{({
+                n: 'NORTH',
+                ne: 'NORTH-EAST',
+                e: 'EAST',
+                se: 'SOUTH-EAST',
+                s: 'SOUTH',
+                sw: 'SOUTH-WEST',
+                w: 'WEST',
+                nw: 'NORTH-WEST',
+              } as const)[selectedSignal.bearingSector]} AREA</span>
+              <span className="line-card-dot" aria-hidden="true" />
+              <span>SEARCH REQUIRED</span>
+            </div>
+            <div className="line-card-lifecycle">
+              {selectedSignal.timeRemaining === 'under_1_day' ? '< 24H REMAINING' :
+               selectedSignal.timeRemaining === 'under_7_days' ? '< 7 DAYS REMAINING' :
+               selectedSignal.timeRemaining === 'under_30_days' ? '< 30 DAYS REMAINING' :
+               selectedSignal.timeRemaining === 'under_60_days' ? '< 60 DAYS REMAINING' : 'PERMANENT'}
+            </div>
+          </div>
+          {inaccurate && (
+            <div className="line-card-accuracy-warning" data-testid="warning-inaccurate-location">
+              GPS ±{Math.round(locationAccuracy)}m / position may be imprecise
+            </div>
+          )}
+
+          {resolutionError && (
+            <div className="line-card-resolution-error" role="status">
+              {resolutionError}
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="line-card-open line-mono"
+            onClick={onNavigateFind}
+            disabled={resolving}
+            data-testid="button-find-this-line"
+          >
+            <BookOpen size={14} strokeWidth={1.4} />
+            {resolving ? 'LOCATING SIGNAL…' : 'FIND THIS LINE'}
+          </button>
+
+          <button
+            type="button"
+            className="line-card-refresh line-mono"
+            onClick={onRefresh}
+            disabled={loading}
+            data-testid="button-refresh-selected-letter"
+          >
+            <RefreshCw size={12} strokeWidth={1.4} className={loading ? 'line-refresh-spinning' : ''} />
+            Refresh proximity
+          </button>
+        </div>
       </section>
     );
   }
-
-  if (replyOpen && selectedLetter) {
-    return (
-      <ReplyComposer
-        letter={selectedLetter}
-        currentLocation={currentLocation}
-        locationAccuracy={locationAccuracy}
-        loading={loading}
-        onRefresh={onRefresh}
-        onClose={() => setReplyOpen(false)}
-      />
-    );
-  }
-
-  const inaccurate = locationAccuracy !== null && locationAccuracy > UNLOCK_DISTANCE_METERS;
 
   return (
     <section
@@ -191,68 +236,34 @@ export function DiscoveryField({
         </button>
       )}
 
-      {!mapContent && letters.map((letter) => (
-        <button
-          key={letter.id}
-          type="button"
-          className={`line-marker line-marker-${letter.tone} ${letter.isUnlocked ? 'line-marker-found' : ''}`}
-          style={{ top: letter.top, left: letter.left }}
-          onClick={() => onSelect(letter)}
-          aria-label={`Inspect ${letter.isUnlocked ? 'found' : 'anonymous'} letter ${letter.distanceLabel} away`}
-          data-testid={`button-letter-marker-${letter.id}`}
-        >
-          <span className="line-marker-dot line-marker-pulse" aria-hidden="true" />
-          <span className="line-marker-label line-mono">
-            <span className="line-marker-letter-label">{letter.isUnlocked ? 'LETTER FOUND' : 'ANONYMOUS LETTER'}</span>
-            {letter.distanceLabel}
-          </span>
-        </button>
-      ))}
+      {!mapContent && signals.map((signal) => {
+        let hash = 0;
+        for (let i = 0; i < signal.handle.length; i++) hash = ((hash << 5) - hash) + signal.handle.charCodeAt(i);
+        const top = 10 + (Math.abs(hash) % 80) + '%';
+        const left = 10 + ((Math.abs(hash) >> 4) % 80) + '%';
+        const tone = signal.hierarchy === 'primary' ? 'coral' : signal.hierarchy === 'secondary' ? 'paper' : 'quiet';
+        const distanceLabel = signal.distanceBand === 'close' ? 'Close' : signal.distanceBand === 'local' ? 'Nearby' : 'Distant';
 
-      {!hasResults && <EmptyFieldState locationStatus={locationStatus} locationReady={locationReady} searching={searching} />}
-
-      {selectedLetter && (
-        <div className={`line-letter-card line-view-enter ${selectedLetter.isUnlocked ? 'line-letter-card-found' : ''}`} data-testid="card-selected-letter">
-          <button type="button" className="line-card-close" onClick={onDismiss} aria-label="Close letter preview" data-testid="button-dismiss-letter">
-            <X size={15} />
-          </button>
-          <span className="line-mono line-card-kicker">{selectedLetter.isUnlocked ? 'LETTER FOUND' : 'SIGNAL DETECTED'}</span>
-          <div className="line-card-title line-serif">{selectedLetter.isUnlocked ? selectedLetter.distanceLabel : 'Anonymous letter'}</div>
-          <div className="line-card-meta">
-            <span>{selectedLetter.distanceLabel} away</span>
-            <span className="line-card-dot" aria-hidden="true" />
-            <span>{selectedLetter.isUnlocked ? 'Within range' : 'Locked'}</span>
-          </div>
-          {inaccurate && (
-            <div className="line-card-accuracy-warning" data-testid="warning-inaccurate-location">
-              GPS ±{Math.round(locationAccuracy)}m / position may be imprecise
-            </div>
-          )}
-          {selectedLetter.isUnlocked ? (
-            <button
-              type="button"
-              className="line-card-open line-mono"
-              onClick={() => setReaderOpen(true)}
-              data-testid="button-open-letter"
-            >
-              <BookOpen size={14} strokeWidth={1.4} />
-              Open letter
-            </button>
-          ) : (
-            <p><LockKeyhole size={13} strokeWidth={1.3} /> Move closer to discover.</p>
-          )}
+        return (
           <button
+            key={signal.handle}
             type="button"
-            className="line-card-refresh line-mono"
-            onClick={onRefresh}
-            disabled={loading}
-            data-testid="button-refresh-selected-letter"
+            className={`line-field-signal line-field-signal-${tone} line-field-signal-${signal.hierarchy}`}
+            style={{ top, left }}
+            onClick={() => onSelect(signal)}
+            aria-label="Inspect anonymous signal"
+            data-testid={`button-letter-marker-${signal.handle}`}
           >
-            <RefreshCw size={12} strokeWidth={1.4} className={loading ? 'line-refresh-spinning' : ''} />
-            Refresh proximity
+            <span className="line-field-signal-beams" aria-hidden="true"><i /><i /></span>
+            <span className="line-field-signal-label line-mono">
+              <span>ANONYMOUS SIGNAL</span>
+              {distanceLabel}
+            </span>
           </button>
-        </div>
-      )}
+        );
+      })}
+
+      {!hasResults && <EmptyFieldState locationStatus={locationStatus} locationReady={locationReady} searching={searching} error={error} />}
     </section>
   );
 }

@@ -26,6 +26,7 @@ import type {
   CreateReplyRequest,
   ErrorEnvelope,
   GetLineLetterParams,
+  GetLineSignalFieldParams,
   GetMyLineRepliesParams,
   GetNearbyLineLettersParams,
   GetRepliesForLetterParams,
@@ -39,7 +40,10 @@ import type {
   LogoutBrowserSessionParams,
   NearbyLetterRecord,
   OwnedLetterRecord,
+  ResolvedSignalTarget,
   SentReplyRecord,
+  SignalFieldRecord,
+  SignalResolutionRequest,
   UnlockedLetterRecord,
   UpdateProfileRequest,
   WriterReplyRecord
@@ -719,6 +723,155 @@ export function useGetNearbyLineLetters<TData = Awaited<ReturnType<typeof getNea
 
 
 
+
+export const getGetLineSignalFieldUrl = (params: GetLineSignalFieldParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/signals/field?${stringifiedParams}` : `/api/signals/field`
+}
+
+/**
+ * Privacy-preserving active signal field derived from a fixed, coarse spatial cell and LINE discovery ranking.
+ */
+export const getLineSignalField = async (params: GetLineSignalFieldParams, options?: Parameters<typeof customFetch>[1]): Promise<SignalFieldRecord[]> => {
+
+  return customFetch<SignalFieldRecord[]>(getGetLineSignalFieldUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLineSignalFieldQueryKey = (params?: GetLineSignalFieldParams,) => {
+    return [
+    `/api/signals/field`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetLineSignalFieldQueryOptions = <TData = Awaited<ReturnType<typeof getLineSignalField>>, TError = ErrorType<ErrorEnvelope>>(params: GetLineSignalFieldParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLineSignalField>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLineSignalFieldQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLineSignalField>>> = ({ signal }) => getLineSignalField(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLineSignalField>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLineSignalFieldQueryResult = NonNullable<Awaited<ReturnType<typeof getLineSignalField>>>
+export type GetLineSignalFieldQueryError = ErrorType<ErrorEnvelope>
+
+
+
+export function useGetLineSignalField<TData = Awaited<ReturnType<typeof getLineSignalField>>, TError = ErrorType<ErrorEnvelope>>(
+ params: GetLineSignalFieldParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLineSignalField>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLineSignalFieldQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getResolveLineSignalUrl = () => {
+
+
+
+
+  return `/api/signals/resolve`
+}
+
+/**
+ * Revalidates a short-lived signal-field handle before entering FIND. This does not unlock letter content.
+ */
+export const resolveLineSignal = async (signalResolutionRequest: SignalResolutionRequest, options?: Parameters<typeof customFetch>[1]): Promise<ResolvedSignalTarget> => {
+
+  return customFetch<ResolvedSignalTarget>(getResolveLineSignalUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(signalResolutionRequest)
+  }
+);}
+
+
+
+
+
+export const getResolveLineSignalMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveLineSignal>>, TError,{data: BodyType<SignalResolutionRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resolveLineSignal>>, TError,{data: BodyType<SignalResolutionRequest>}, TContext> => {
+
+const mutationKey = ['resolveLineSignal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resolveLineSignal>>, {data: BodyType<SignalResolutionRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  resolveLineSignal(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResolveLineSignalMutationResult = NonNullable<Awaited<ReturnType<typeof resolveLineSignal>>>
+    export type ResolveLineSignalMutationBody = BodyType<SignalResolutionRequest>
+    export type ResolveLineSignalMutationError = ErrorType<ErrorEnvelope>
+
+    export const useResolveLineSignal = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveLineSignal>>, TError,{data: BodyType<SignalResolutionRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resolveLineSignal>>,
+        TError,
+        {data: BodyType<SignalResolutionRequest>},
+        TContext
+      > => {
+      return useMutation(getResolveLineSignalMutationOptions(options));
+    }
 
 export const getGetMyLineLettersUrl = () => {
 

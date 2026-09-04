@@ -22,6 +22,11 @@ import {
 import { loadLetters, type Letter } from '@/services/letters';
 import { loadReplies, type LetterReply } from '@/services/replies';
 import { api } from '@/services/api';
+import {
+  getGetLineSignalFieldQueryKey,
+  useGetLineSignalField,
+  useResolveLineSignal,
+} from '@workspace/api-client-react';
 
 const profileRows = ['Privacy', 'Notifications', 'Location', 'Safety', 'Account'];
 const CesiumMap = lazy(() => import('@/components/line/CesiumMap').then((module) => ({ default: module.CesiumMap })));
@@ -60,24 +65,31 @@ function OpeningScreen({ onSignIn }: { onSignIn: () => void }) {
   );
 }
 
-function DiscoverView({ location, onDropLetter, storedLetters, nearbyLoading }: { location: LocationState; onDropLetter: () => void; storedLetters: import('@/services/api').NearbyLetterRecord[]; nearbyLoading: boolean }) {
-  const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
+function DiscoverView({ location, onDropLetter, onNavigateFind }: { location: LocationState; onDropLetter: () => void; onNavigateFind: (targetId: string) => void; }) {
+  const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
   const [mapUnavailable, setMapUnavailable] = useState(false);
+  const [resolutionError, setResolutionError] = useState<string | null>(null);
+  const resolveSignal = useResolveLineSignal();
 
-  const nearbyLetters = useMemo(
-    () => getNearbyLetters(location.location, storedLetters),
-    [location.location, storedLetters],
-  );
   const locationReady = location.status === 'active' && location.location !== null;
-  const selectedLetter = nearbyLetters.find((letter) => letter.id === selectedLetterId) ?? null;
-  const selectLetter = useCallback((letterId: string) => setSelectedLetterId(letterId), []);
+  const signalParams = { latitude: location.location?.latitude ?? 0, longitude: location.location?.longitude ?? 0 };
+  const { data: signals = [], isFetching, isError } = useGetLineSignalField(
+    signalParams,
+    { query: { enabled: locationReady, queryKey: getGetLineSignalFieldQueryKey(signalParams) } }
+  );
+
+  const selectedSignal = signals.find((signal) => signal.handle === selectedSignalId) ?? null;
+  const selectSignal = useCallback((signalId: string) => {
+    setResolutionError(null);
+    setSelectedSignalId(signalId);
+  }, []);
   const markMapUnavailable = useCallback(() => setMapUnavailable(true), []);
 
   useEffect(() => {
-    if (selectedLetterId && locationReady && !selectedLetter) {
-      setSelectedLetterId(null);
+    if (selectedSignalId && locationReady && !selectedSignal && !isFetching) {
+      setSelectedSignalId(null);
     }
-  }, [locationReady, selectedLetter, selectedLetterId]);
+  }, [locationReady, selectedSignal, selectedSignalId, isFetching]);
 
   return (
     <div className="line-view line-discover-view">
@@ -88,9 +100,9 @@ function DiscoverView({ location, onDropLetter, storedLetters, nearbyLoading }: 
       <div className="line-view-heading">
         <div>
           <span className="line-section-index line-mono">01 / DISCOVER</span>
-          <h1 className="line-view-title line-serif">Find what’s<br /><em>left behind.</em></h1>
+          <h1 className="line-view-title line-serif">God's eye<br /><em>view.</em></h1>
         </div>
-        <p className="line-view-caption">Private signals —<br />within 100 metres.</p>
+        <p className="line-view-caption">The field of connections<br />happening around you.</p>
       </div>
       <LocationPanel location={location} />
       <button type="button" className="line-drop-letter" onClick={onDropLetter} data-testid="button-open-letter-composer">
@@ -106,32 +118,61 @@ function DiscoverView({ location, onDropLetter, storedLetters, nearbyLoading }: 
         </div>
       )}
       <DiscoveryField
-        letters={nearbyLetters}
-        selectedLetter={selectedLetter}
+        signals={signals}
+        selectedSignal={selectedSignal}
         locationStatus={location.status}
         locationReady={locationReady}
-        currentLocation={location.location}
         locationAccuracy={location.location?.accuracy ?? null}
-        loading={location.loading || nearbyLoading}
-        searching={nearbyLoading}
+        loading={location.loading || isFetching}
+        searching={isFetching}
+        error={isError}
+        resolving={resolveSignal.isPending}
+        resolutionError={resolutionError}
         mapContent={mapUnavailable ? undefined : (
           <Suspense fallback={<div className="line-cesium-map-status line-mono">LOADING 3D WORLD…</div>}>
             <CesiumMap
               location={location.location}
-              letters={nearbyLetters}
-              onSelect={selectLetter}
+              signals={signals}
+              onSelect={selectSignal}
               onUnavailable={markMapUnavailable}
             />
           </Suspense>
         )}
         onRefresh={location.requestLocation}
-        onSelect={(letter) => selectLetter(letter.id)}
-        onDismiss={() => setSelectedLetterId(null)}
+        onSelect={(signal) => selectSignal(signal.handle)}
+        onDismiss={() => {
+          setResolutionError(null);
+          setSelectedSignalId(null);
+        }}
+        onNavigateFind={() => {
+          if (!selectedSignal || !location.location) return;
+          setResolutionError(null);
+          resolveSignal.mutate(
+            {
+              data: {
+                handle: selectedSignal.handle,
+                latitude: location.location.latitude,
+                longitude: location.location.longitude,
+              },
+            },
+            {
+              onSuccess: ({ targetHandle }) => onNavigateFind(targetHandle),
+              onError: () => setResolutionError('This signal is no longer in the active field. Refresh and try again.'),
+            },
+          );
+        }}
       />
       <div className="line-discover-footnote line-mono">
-        <span>{locationReady ? `${nearbyLetters.length} SIGNAL${nearbyLetters.length === 1 ? '' : 'S'} WITHIN 100M` : 'DISCOVERY STANDBY'}</span>
+        <span>{locationReady ? `${signals.length} SIGNAL${signals.length === 1 ? '' : 'S'} IN THE FIELD` : 'DISCOVERY STANDBY'}</span>
         <span>ANONYMOUS / COORDINATES HIDDEN</span>
       </div>
+      {import.meta.env.DEV && (
+        <div className="line-dev-diagnostics line-mono">
+          <div>DEV / SPATIAL DIAGNOSTICS</div>
+          <div>SIGNALS: {signals.length} {isError ? '(ERROR)' : ''}</div>
+          <div>SELECTED: {selectedSignalId ? 'OPAQUE HANDLE ACTIVE' : 'NONE'}</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -658,49 +699,66 @@ function AppViewContent({
   location,
   onDropLetter,
   nearbyLetters,
-  storedLetters,
+  targetSignalId,
   nearbyLoading,
   nearbyError,
-  onNavigateHome
+  onNavigateHome,
+  onNavigateFind
 }: {
   activeView: AppView;
   location: LocationState;
   onDropLetter: () => void;
   nearbyLetters: import('@/services/discovery').NearbyLetter[];
-  storedLetters: import('@/services/api').NearbyLetterRecord[];
+  targetSignalId: string | null;
   nearbyLoading: boolean;
   nearbyError: string | null;
   onNavigateHome: () => void;
+  onNavigateFind: (targetId: string) => void;
 }) {
-  if (activeView === 'camera') return <CameraView location={location} nearbyLetters={nearbyLetters} loading={nearbyLoading || location.loading} networkError={nearbyError} onRefresh={location.requestLocation} onNavigateHome={onNavigateHome} />;
+  if (activeView === 'camera') return <CameraView location={location} nearbyLetters={nearbyLetters} targetLetterId={targetSignalId} loading={nearbyLoading || location.loading} networkError={nearbyError} onRefresh={location.requestLocation} onNavigateHome={onNavigateHome} />;
   if (activeView === 'redline') return <MyLettersView location={location} />;
   if (activeView === 'profile') return <ProfileView location={location} />;
-  return <DiscoverView location={location} onDropLetter={onDropLetter} storedLetters={storedLetters} nearbyLoading={nearbyLoading} />;
+  return <DiscoverView location={location} onDropLetter={onDropLetter} onNavigateFind={onNavigateFind} />;
 }
 
 function AppShell() {
   const [activeView, setActiveView] = useState<AppView>('discover');
+  const [targetSignalId, setTargetSignalId] = useState<string | null>(null);
   const location = useLocation();
   const [composerOpen, setComposerOpen] = useState(false);
   const composerOpenRef = useRef(false);
   const historyEntryRef = useRef(false);
   const closingComposerRef = useRef(false);
+  const loadedFindTargetRef = useRef<string | null>(null);
 
   const [storedLetters, setStoredLetters] = useState<import('@/services/api').NearbyLetterRecord[]>([]);
+  const [findGuidanceOrigin, setFindGuidanceOrigin] = useState<Pick<import('@/hooks/useLocation').LocationData, 'latitude' | 'longitude'> | null>(null);
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [nearbyError, setNearbyError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!location.location) {
+    if (activeView !== 'camera' || !location.location || !targetSignalId) {
       setStoredLetters([]);
+      setFindGuidanceOrigin(null);
+      loadedFindTargetRef.current = null;
       return;
     }
+    if (loadedFindTargetRef.current === targetSignalId) return;
     let cancelled = false;
     setNearbyLoading(true);
     setNearbyError(null);
-    void api.nearby(location.location)
+    void api.nearby(location.location, targetSignalId)
       .then((letters) => {
-        if (!cancelled) setStoredLetters(letters);
+        if (!cancelled) {
+          setStoredLetters(letters);
+          loadedFindTargetRef.current = targetSignalId;
+          if (targetSignalId) {
+            setFindGuidanceOrigin((origin) => origin ?? {
+              latitude: location.location!.latitude,
+              longitude: location.location!.longitude,
+            });
+          }
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -714,11 +772,15 @@ function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [location.location, location.location?.timestamp]); // add timestamp to re-fetch when location refreshes
+  }, [activeView, targetSignalId, location.location, location.location?.timestamp]); // add timestamp to re-fetch when location refreshes
 
   const nearbyLetters = useMemo(
-    () => getNearbyLetters(location.location, storedLetters),
-    [location.location, storedLetters],
+    () => getNearbyLetters(
+      location.location,
+      storedLetters,
+      targetSignalId ? findGuidanceOrigin : null,
+    ),
+    [findGuidanceOrigin, location.location, storedLetters, targetSignalId],
   );
 
   useEffect(() => {
@@ -807,13 +869,26 @@ function AppShell() {
               location={location}
               onDropLetter={openComposer}
               nearbyLetters={nearbyLetters}
-              storedLetters={storedLetters}
+              targetSignalId={targetSignalId}
               nearbyLoading={nearbyLoading}
               nearbyError={nearbyError}
-              onNavigateHome={() => setActiveView('discover')}
+              onNavigateHome={() => {
+                setTargetSignalId(null);
+                setActiveView('discover');
+              }}
+              onNavigateFind={(targetId) => {
+                setTargetSignalId(targetId);
+                setActiveView('camera');
+              }}
             />
           </div>
-          <BottomNav activeView={activeView} onChange={setActiveView} />
+          <BottomNav
+            activeView={activeView}
+            onChange={(view) => {
+              if (view !== 'camera') setTargetSignalId(null);
+              setActiveView(view);
+            }}
+          />
         </>
       )}
     </main>

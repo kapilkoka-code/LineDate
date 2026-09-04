@@ -132,10 +132,10 @@ paths:
       parameters:
         - { name: latitude, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
         - { name: longitude, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
-        - { name: radius, in: query, required: false, schema: { type: number, minimum: 1, maximum: 100, default: 100 } }
+        - { name: targetHandle, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 512 } }
       responses:
         "200":
-          description: Anonymous nearby letter summaries
+          description: Target-scoped FIND guidance for an explicitly resolved God’s Eye signal
           content:
             application/json:
               schema:
@@ -143,6 +143,64 @@ paths:
                 items: { $ref: "#/components/schemas/NearbyLetterRecord" }
         "400":
           description: Invalid location
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /signals/field:
+    get:
+      operationId: getLineSignalField
+      tags: [LINE]
+      description: Privacy-preserving active signal field derived from a fixed, coarse spatial cell and LINE discovery ranking.
+      parameters:
+        - { name: latitude, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: longitude, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+      responses:
+        "200":
+          description: Ranked active signals without letter content, identity, coordinates, or precise spatial measurements.
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 18
+                items: { $ref: "#/components/schemas/SignalFieldRecord" }
+        "400":
+          description: Invalid field location
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /signals/resolve:
+    post:
+      operationId: resolveLineSignal
+      tags: [LINE]
+      description: Revalidates a short-lived signal-field handle before entering FIND. This does not unlock letter content.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignalResolutionRequest" }
+      responses:
+        "200":
+          description: Revalidated FIND target
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResolvedSignalTarget" }
+        "400":
+          description: Invalid handle or location
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "404":
+          description: Signal is no longer available
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorEnvelope" }
@@ -176,6 +234,8 @@ paths:
         - $ref: "#/components/parameters/LetterId"
         - { name: latitude, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
         - { name: longitude, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+        - { name: accuracy, in: query, required: true, schema: { type: number, minimum: 0, maximum: 25 } }
+        - { name: observedAt, in: query, required: true, schema: { type: number, minimum: 0 } }
       responses:
         "200":
           description: Letter with text only when physically unlocked
@@ -301,7 +361,7 @@ components:
       name: letterId
       in: path
       required: true
-      schema: { type: string, minLength: 1, maxLength: 128 }
+      schema: { type: string, minLength: 1, maxLength: 512 }
   schemas:
     HealthStatus:
       type: object
@@ -392,6 +452,55 @@ components:
           minimum: 0
           maximum: 359
           description: Server-computed initial bearing, quantized to a privacy-preserving directional sector.
+    SignalFieldRecord:
+      type: object
+      additionalProperties: false
+      required: [handle, hierarchy, distanceBand, bearingSector, availability, lifecycleKind, timeRemaining]
+      properties:
+        handle:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: Opaque, short-lived, user-bound handle used only to request FIND target revalidation.
+        hierarchy:
+          type: string
+          enum: [primary, secondary, tertiary]
+          description: Existing discovery prominence after coarse nearest-first ranking.
+        distanceBand:
+          type: string
+          enum: [close, local, distant]
+        bearingSector:
+          type: string
+          enum: [n, ne, e, se, s, sw, w, nw]
+        availability:
+          type: string
+          enum: [active]
+          description: The signal was active when this coarse field snapshot was issued. It never implies proximity unlock.
+        lifecycleKind:
+          type: string
+          enum: [free, premium, permanent]
+        timeRemaining:
+          type: [string, "null"]
+          enum: [under_1_day, under_7_days, under_30_days, under_60_days, null]
+          description: Coarse active lifetime; null only for permanent signals.
+    SignalResolutionRequest:
+      type: object
+      additionalProperties: false
+      required: [handle, latitude, longitude]
+      properties:
+        handle: { type: string, minLength: 1, maxLength: 512 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+    ResolvedSignalTarget:
+      type: object
+      additionalProperties: false
+      required: [targetHandle]
+      properties:
+        targetHandle:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: Opaque, expiring FIND capability. The underlying letter identifier is never exposed to the browser.
     UnlockedLetterRecord:
       type: object
       required: [id, text, createdAt, visibility, anonymous, status, isOwn, isUnlocked, distanceMeters]

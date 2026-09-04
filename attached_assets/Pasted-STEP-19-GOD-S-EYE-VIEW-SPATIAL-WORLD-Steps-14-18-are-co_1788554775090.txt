@@ -1,0 +1,499 @@
+STEP 19 — GOD’S EYE VIEW + SPATIAL WORLD
+
+Steps 14–18 are complete.
+
+LINE currently has:
+
+* Cinematic twin-beam FIND experience
+* Calibrated GPS and device heading
+* Distance/depth-responsive visualization
+* World-anchored AR where supported
+* Sensor-spatial fallback
+* Spatial atmospheric audio
+* Primary/secondary/tertiary LINE hierarchy
+* Server-authoritative proximity/unlock
+* Privacy-preserving spatial architecture
+* Cesium 3D map fallback
+
+Do NOT rebuild these systems.
+
+The goal of Step 19 is to develop the God’s Eye View concept into a spatial visualization of the LINE world around the user.
+
+This is NOT intended to replace FIND.
+
+It is a complementary perspective.
+
+⸻
+
+1. TWO WAYS OF SEEING LINE
+
+LINE should now have two distinct spatial perspectives:
+
+FIND
+
+First-person.
+
+The user is physically searching for a LINE.
+
+Camera + light + sound.
+
+Emotional experience:
+
+“There is something over there.”
+
+GOD’S EYE VIEW
+
+Third-person spatial perspective.
+
+The user can understand the surrounding LINE field.
+
+Emotional experience:
+
+“There are connections happening around me.”
+
+Do not make God’s Eye View feel like Google Maps.
+
+It should feel like a living spatial field.
+
+⸻
+
+2. USE EXISTING CESIUM ARCHITECTURE
+
+Inspect the existing CesiumMap implementation.
+
+Do NOT introduce a second mapping engine.
+
+Do NOT replace the existing Cesium/WebGL 2 architecture.
+
+Reuse the current:
+
+* Cesium initialization
+* WebGL 2 capability detection
+* fallback handling
+* map lifecycle
+* location system
+* server APIs where appropriate
+
+The existing:
+
+“3D MAP UNAVAILABLE / SIGNAL FIELD ACTIVE”
+
+fallback must remain functional.
+
+⸻
+
+3. SPATIAL SIGNAL FIELD
+
+Represent discoverable LINEs as luminous spatial signals.
+
+Do NOT use conventional pins.
+
+Do NOT use red/blue map markers.
+
+Use the existing LINE visual language:
+
+Twin vertical beams.
+
+From a distant God’s Eye View, multiple LINEs should appear as a field of lights.
+
+Each signal can communicate:
+
+* approximate distance
+* direction
+* relative activity
+* primary/secondary importance
+* availability
+
+without revealing private information.
+
+⸻
+
+4. PRIVACY
+
+This is critical.
+
+God’s Eye View must NEVER expose:
+
+* exact letter coordinates unnecessarily
+* writer identity
+* private user locations
+* movement history
+* hidden/private letters
+
+Only authorized/discoverable signals should appear.
+
+Continue using server-authoritative spatial filtering.
+
+If the backend currently returns exact coordinates to the client, investigate whether God’s Eye View can instead operate using:
+
+* privacy-preserving spatial cells
+* quantized positions
+* bounded spatial regions
+* server-generated visualization coordinates
+
+Do not weaken privacy merely to improve visualization.
+
+⸻
+
+5. SPATIAL SCALE
+
+Create multiple spatial scales.
+
+CLOSE
+
+Nearby LINEs are visually distinct.
+
+LOCAL
+
+A broader field around the user becomes visible.
+
+DISTANT
+
+Farther signals become atmospheric.
+
+Do not allow zooming to reveal increasingly precise private information.
+
+The visualization should become more abstract as spatial scale increases.
+
+⸻
+
+6. GOD’S EYE CAMERA
+
+Design a dedicated camera experience.
+
+The user should be able to:
+
+* rotate
+* orbit
+* zoom
+* tilt
+* inspect the spatial field
+
+but maintain a strong visual relationship with the user’s own position.
+
+Represent the user’s position subtly.
+
+Do NOT use a standard blue GPS dot.
+
+Instead consider a restrained central LIGHT / FIELD origin.
+
+⸻
+
+7. VISUAL LANGUAGE
+
+The world should feel cinematic.
+
+Use:
+
+* darkness/low-light atmosphere where appropriate
+* subtle terrain/building context
+* luminous vertical beams
+* atmospheric falloff
+* restrained bloom
+* spatial depth
+* haze
+* distance-based intensity
+
+Avoid:
+
+* game UI
+* neon cyberpunk overload
+* conventional map pins
+* excessive labels
+* clutter
+* bright dashboard styling
+
+The beams are the information.
+
+⸻
+
+8. SIGNAL HIERARCHY
+
+Reuse the existing hierarchy:
+
+PRIMARY:
+strongest and most relevant
+
+SECONDARY:
+quieter
+
+TERTIARY:
+atmospheric
+
+The hierarchy should be determined by the existing discovery logic.
+
+Do not invent a second ranking system unless necessary.
+
+⸻
+
+9. INTERACTION
+
+When the user selects a signal:
+
+Do NOT immediately reveal the letter.
+
+Instead show a minimal spatial preview:
+
+* approximate distance
+* direction/area
+* availability state
+* time remaining where appropriate
+
+Then provide an action such as:
+
+FIND THIS LINE
+
+which transitions the user into the existing FIND experience.
+
+The user then physically searches for it.
+
+This preserves the core LINE ritual.
+
+⸻
+
+10. FIND ↔ GOD’S EYE VIEW
+
+Create a seamless conceptual relationship.
+
+God’s Eye View:
+
+“There are lights around you.”
+
+Tap:
+
+FIND THIS LINE
+
+↓
+
+Camera FIND:
+
+“Now go find it.”
+
+↓
+
+Physical approach:
+
+light becomes stronger
+
+↓
+
+10m:
+
+LINE becomes unlockable
+
+↓
+
+Letter:
+
+discovery
+
+This should feel like one continuous experience rather than separate application screens.
+
+⸻
+
+11. DISTANCE ABSTRACTION
+
+Do not expose exact distances for every distant signal.
+
+For example:
+
+CLOSE:
+“12 m”
+
+LOCAL:
+“Nearby”
+
+DISTANT:
+“Somewhere around here”
+
+This allows the visualization to remain useful without becoming a surveillance tool.
+
+⸻
+
+12. LETTER LIFECYCLE
+
+Respect the existing lifecycle:
+
+Free:
+30-day active period
+
+Premium:
+60-day active period
+
+Permanent:
+individually purchased permanent letter
+
+Expired letters must disappear from the active spatial field.
+
+Do not create a second expiration mechanism.
+
+Use the existing server-side lifecycle state.
+
+⸻
+
+13. EMPTY WORLD
+
+If there are no discoverable LINEs:
+
+Do not show an empty map dashboard.
+
+Create an atmospheric empty state.
+
+Something conceptually equivalent to:
+
+“Nothing is waiting here yet.”
+
+The world should still feel alive through extremely subtle atmosphere.
+
+Do not fabricate signals.
+
+⸻
+
+14. PERFORMANCE
+
+God’s Eye View must remain mobile-first.
+
+Use:
+
+* efficient instancing where appropriate
+* level-of-detail
+* distance culling
+* throttled spatial updates
+* GPU-friendly beam rendering
+
+Do not render hundreds of expensive objects individually.
+
+Set a sensible maximum number of visible signals.
+
+⸻
+
+15. WEBGL FALLBACK
+
+Preserve the existing Cesium fallback.
+
+If 3D rendering cannot initialize:
+
+Show the existing:
+
+3D MAP UNAVAILABLE
+SIGNAL FIELD ACTIVE
+
+experience.
+
+Do not show a broken Cesium canvas.
+
+Do not display technical errors.
+
+⸻
+
+16. DEVELOPMENT DIAGNOSTICS
+
+Development-only diagnostics may show:
+
+* signal count
+* spatial cell
+* approximate distance
+* rendering mode
+* WebGL capability
+* selected signal
+* camera position
+* culling state
+* performance/FPS
+
+Remove diagnostics from production.
+
+Do not create persistent test letters.
+
+⸻
+
+17. SECURITY REVIEW
+
+Before completion, inspect:
+
+* API responses
+* client payloads
+* Cesium entities
+* spatial filtering
+* signal selection
+* letter authorization
+
+Confirm that selecting a signal cannot bypass:
+
+* proximity authorization
+* server-side unlock
+* privacy restrictions
+
+A visualization object is never an authorization object.
+
+⸻
+
+18. VALIDATION
+
+Test:
+
+* 0 signals
+* 1 signal
+* 3 signals
+* many signals
+* close + distant signals
+* expired signals
+* permanent letters
+* signal selection
+* FIND transition
+* return from FIND
+* WebGL unavailable
+* WebGL render error
+* poor GPS
+* background/foreground
+* reduced motion
+* mobile viewport
+* iPad
+* Android Chrome
+
+Confirm existing FIND remains unchanged.
+
+⸻
+
+ACCEPTANCE CRITERIA
+
+Step 19 is complete only when:
+
+* God’s Eye View feels distinct from conventional maps.
+* LINE beams remain the primary visual language.
+* Signals remain privacy-preserving.
+* Existing Cesium architecture is reused.
+* WebGL 2 compatibility remains intact.
+* Existing fallback remains intact.
+* Signal hierarchy is preserved.
+* FIND transition works naturally.
+* Selecting a signal cannot bypass server authorization.
+* Expired letters disappear correctly.
+* Permanent letters behave correctly.
+* Empty states do not fabricate signals.
+* Performance remains acceptable.
+* Reduced-motion support remains intact.
+* iPad fallback remains stable.
+* Typecheck passes.
+* LINE production build passes.
+* API build passes.
+* Health check passes.
+* Production contains no diagnostics.
+* Architecture review finds no high/medium severity issues.
+
+CORE DESIGN PRINCIPLE
+
+FIND is:
+
+“I am looking for one.”
+
+God’s Eye View is:
+
+“I can see the world of connections around me.”
+
+They are two perspectives of the same system.
+
+Do not turn God’s Eye View into a conventional map.
+
+The map is merely the physical canvas.
+
+The LINEs are the world.

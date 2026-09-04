@@ -3,6 +3,7 @@ import {
   check,
   doublePrecision,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -27,6 +28,8 @@ export const lettersTable = pgTable(
     anonymous: boolean("anonymous").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     status: varchar("status", { length: 24 }).notNull().default("dropped"),
+    lifecycleKind: varchar("lifecycle_kind", { length: 24 }).notNull().default("free"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
   },
   (table) => [
     index("line_letters_writer_idx").on(table.writerId),
@@ -35,6 +38,10 @@ export const lettersTable = pgTable(
     check("line_letters_latitude_range", sql`${table.latitude} BETWEEN -90 AND 90`),
     check("line_letters_longitude_range", sql`${table.longitude} BETWEEN -180 AND 180`),
     check("line_letters_accuracy_positive", sql`${table.accuracy} >= 0`),
+    check(
+      "line_letters_lifecycle_kind",
+      sql`${table.lifecycleKind} IN ('free', 'premium', 'permanent')`,
+    ),
   ],
 );
 
@@ -82,8 +89,23 @@ export const identityRelationshipsTable = pgTable(
   ],
 );
 
+export const signalGuardsTable = pgTable(
+  "line_signal_guards",
+  {
+    digest: varchar("digest", { length: 64 }).primaryKey(),
+    count: integer("count").notNull().default(1),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("line_signal_guards_expiry_idx").on(table.expiresAt),
+    check("line_signal_guards_count_positive", sql`${table.count} > 0`),
+  ],
+);
+
 export type LetterRecord = typeof lettersTable.$inferSelect;
 export type NewLetterRecord = typeof lettersTable.$inferInsert;
 export type ReplyRecord = typeof repliesTable.$inferSelect;
 export type NewReplyRecord = typeof repliesTable.$inferInsert;
 export type IdentityRelationship = typeof identityRelationshipsTable.$inferSelect;
+export type SignalGuard = typeof signalGuardsTable.$inferSelect;

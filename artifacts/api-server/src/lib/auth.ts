@@ -21,6 +21,10 @@ export interface SessionData {
   access_token: string;
   refresh_token?: string;
   expires_at?: number;
+  signal_field_rate_limit?: {
+    window_started_at: number;
+    count: number;
+  };
 }
 
 let oidcConfig: client.Configuration | null = null;

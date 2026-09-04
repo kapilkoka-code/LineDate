@@ -20,6 +20,7 @@ import {
   type SensorConfidence,
 } from '@/hooks/useOrientationController';
 import type { NearbyLetter } from '@/services/discovery';
+import { ApiError, api } from '@/services/api';
 import {
   disposeFindAudio,
   getFindAudioDiagnostics,
@@ -43,6 +44,7 @@ type CameraState = 'prompt' | 'requesting' | 'granted' | 'denied' | 'simulated';
 type CameraViewProps = {
   location: LocationState;
   nearbyLetters: NearbyLetter[];
+  targetLetterId?: string | null;
   loading: boolean;
   networkError: string | null;
   onRefresh: () => void;
@@ -93,6 +95,7 @@ function triggerHaptic(level: 'approaching' | 'near' | 'unlocked') {
 export function CameraView({
   location,
   nearbyLetters,
+  targetLetterId,
   loading,
   networkError,
   onRefresh,
@@ -106,6 +109,9 @@ export function CameraView({
     return hour < 6 || hour >= 18;
   });
   const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
+  const [openedLetter, setOpenedLetter] = useState<NearbyLetter | null>(null);
+  const [proximityCheckError, setProximityCheckError] = useState<string | null>(null);
+  const [checkingProximity, setCheckingProximity] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
   const [simulatedDistance, setSimulatedDistance] = useState<(typeof SIMULATED_DISTANCES)[number]>(50);
   const [simulatedBearing, setSimulatedBearing] = useState<number>(0);
@@ -143,18 +149,22 @@ export function CameraView({
   const lastProximityLevelRef = useRef(0);
 
   const selectedLetter = useMemo(
-    () => nearbyLetters.find((letter) => letter.id === selectedLetterId) ?? null,
-    [nearbyLetters, selectedLetterId],
+    () => openedLetter?.id === selectedLetterId
+      ? openedLetter
+      : nearbyLetters.find((letter) => letter.id === selectedLetterId) ?? null,
+    [nearbyLetters, openedLetter, selectedLetterId],
   );
 
   const prioritizedLetters = useMemo(
-    () => [...nearbyLetters]
+    () => (targetLetterId
+      ? nearbyLetters.filter((letter) => letter.id === targetLetterId)
+      : [...nearbyLetters]
       .sort((first, second) => {
         if (first.isUnlocked !== second.isUnlocked) return first.isUnlocked ? -1 : 1;
         return first.distanceMeters - second.distanceMeters;
-      })
+      }))
       .slice(0, 3),
-    [nearbyLetters],
+    [nearbyLetters, targetLetterId],
   );
 
   const visualSignals = useMemo<VisualSignal[]>(() => {
@@ -643,6 +653,38 @@ export function CameraView({
     if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
   };
 
+  const checkProximity = useCallback(async (letter: NearbyLetter) => {
+    if (!location.location || checkingProximity) return;
+    setCheckingProximity(true);
+    setProximityCheckError(null);
+    try {
+      const unlocked = await api.letter(letter.id, location.location);
+      const opened: NearbyLetter = {
+        ...letter,
+        id: unlocked.id,
+        distanceMeters: unlocked.distanceMeters ?? letter.distanceMeters,
+        distanceLabel: `${Math.max(1, Math.round(unlocked.distanceMeters ?? letter.distanceMeters))}m`,
+        isUnlocked: true,
+        letter: {
+          ...letter.letter,
+          id: unlocked.id,
+          text: unlocked.text ?? '',
+          isUnlocked: true,
+        },
+      };
+      setOpenedLetter(opened);
+      setSelectedLetterId(opened.id);
+    } catch (error) {
+      setProximityCheckError(
+        error instanceof ApiError && error.status === 403
+          ? 'Not within 10m yet. Keep following the light.'
+          : 'This signal is no longer available.',
+      );
+    } finally {
+      setCheckingProximity(false);
+    }
+  }, [checkingProximity, location.location]);
+
   if (selectedLetter && replyOpen) {
     return (
       <div className="line-view line-camera-reply">
@@ -667,7 +709,10 @@ export function CameraView({
           loading={loading}
           onRefresh={onRefresh}
           onReply={() => setReplyOpen(true)}
-          onClose={() => setSelectedLetterId(null)}
+          onClose={() => {
+            setOpenedLetter(null);
+            setSelectedLetterId(null);
+          }}
         />
       </div>
     );
@@ -749,6 +794,11 @@ export function CameraView({
   }
 
   const locationUnavailable = location.status !== 'active' || !location.location;
+  const targetUnavailable = Boolean(
+    targetLetterId
+    && !loading
+    && nearbyLetters.every((letter) => letter.id !== targetLetterId),
+  );
   const sensorNeedsCalibration = cameraState === 'granted'
     && sensorHeadingAvailable
     && directionalConfidence === 'low'
@@ -767,6 +817,10 @@ export function CameraView({
     ? ['LOCATION NEEDED', 'Enable location to discover nearby letters.']
     : networkError
       ? ['SIGNAL INTERRUPTED', 'Nearby letters could not be refreshed.']
+      : !targetLetterId
+        ? ['CHOOSE A SIGNAL', 'Open God’s Eye View and select a LINE to find.']
+      : targetUnavailable
+        ? ['SIGNAL FADED', 'This LINE is no longer in the active field.']
       : !primarySignal
         ? ['NOTHING NEARBY', 'Nothing nearby.']
         : primarySignal.isUnlocked
@@ -816,6 +870,12 @@ export function CameraView({
           {primarySignal && <small className="line-mono">{Math.max(1, Math.round(primarySignal.distanceMeters))} m away</small>}
         </div>
 
+        {proximityCheckError && (
+          <div className="line-find-calibration" role="status">
+            <span className="line-mono">{proximityCheckError}</span>
+          </div>
+        )}
+
         {(worldArStatus || gpsDirectionUncertain || sensorNeedsCalibration) && (
           <div className="line-find-calibration" role="status" data-testid="state-find-calibration">
             <span className="line-mono">
@@ -861,7 +921,7 @@ export function CameraView({
               pulse={signal.id === pulseLetterId}
               confidence={directionalConfidence}
               isNight={isNight}
-              onOpen={signal.source?.isUnlocked ? () => setSelectedLetterId(signal.source!.id) : undefined}
+              onOpen={signal.source ? () => void checkProximity(signal.source!) : undefined}
             />
           );
         })}
@@ -869,6 +929,17 @@ export function CameraView({
         {!worldArActive && <div className="line-camera-crosshair" aria-hidden="true" />}
 
         <div className="line-find-controls">
+          {primarySignal?.source && targetLetterId && (
+            <button
+              type="button"
+              className="line-find-world-ar line-mono"
+              onClick={() => void checkProximity(primarySignal.source!)}
+              disabled={checkingProximity}
+              data-testid="button-check-line-proximity"
+            >
+              {checkingProximity ? 'Checking…' : 'Check proximity'}
+            </button>
+          )}
           <button
             type="button"
             className="line-find-audio-toggle line-mono"

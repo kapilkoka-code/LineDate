@@ -13,6 +13,10 @@ import {
   GetMyLineRepliesResponse,
   GetNearbyLineLettersQueryParams,
   GetNearbyLineLettersResponse,
+  GetLineSignalFieldQueryParams,
+  GetLineSignalFieldResponse,
+  ResolveLineSignalBody,
+  ResolveLineSignalResponse,
   GetRepliesForLetterParams,
   GetRepliesForLetterQueryParams,
   GetRepliesForLetterResponse,
@@ -29,15 +33,48 @@ import {
   identityRelationshipsTable,
   lettersTable,
   repliesTable,
+  signalGuardsTable,
   usersTable,
 } from "@workspace/db";
-import { and, desc, eq, gte, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, lte, ne, or, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+} from "node:crypto";
+import {
+  getSession,
+  getSessionId,
+  updateSession,
+} from "../lib/auth";
 
 const DISCOVERY_RANGE_METERS = 100;
 const UNLOCK_DISTANCE_METERS = 10;
 const BEARING_SECTOR_DEGREES = 15;
+const SIGNAL_FIELD_CELL_METERS = 25;
+const SIGNAL_FIELD_RADIUS_METERS = 82;
+const SIGNAL_FIELD_LIMIT = 18;
+const SIGNAL_HANDLE_TTL_MS = 10 * 60_000;
+const SIGNAL_FIELD_RATE_LIMIT = 30;
 const router: IRouter = Router();
+
+type SignalCapability = {
+  version: 1;
+  kind: "field" | "find" | "unlocked";
+  letterId: string;
+  userId: string;
+  cellKey: string | null;
+  expiresAt: number;
+  guidanceDistance: number | null;
+  guidanceBearing: number | null;
+  originLatitude: number | null;
+  originLongitude: number | null;
+};
+
+let signalCapabilityKey: Buffer | null = null;
 
 function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
   const earthRadius = 6_371_000;
@@ -62,6 +99,306 @@ function privacySafeBearingDegrees(lat1: number, lon1: number, lat2: number, lon
     - Math.sin(startLatitude) * Math.cos(endLatitude) * Math.cos(longitudeDelta);
   const bearing = (degrees(Math.atan2(y, x)) + 360) % 360;
   return Math.round(bearing / BEARING_SECTOR_DEGREES) * BEARING_SECTOR_DEGREES % 360;
+}
+
+function bearingSector(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const quantized = privacySafeBearingDegrees(lat1, lon1, lat2, lon2);
+  return (["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const)[
+    Math.round(quantized / 45) % 8
+  ];
+}
+
+function distanceBand(distance: number) {
+  if (distance <= 25) return "close" as const;
+  if (distance <= 55) return "local" as const;
+  return "distant" as const;
+}
+
+function spatialCell(latitude: number, longitude: number, cellMeters: number) {
+  const latitudeSize = cellMeters / 111_320;
+  const latitudeIndex = Math.floor((latitude + 90) / latitudeSize);
+  const centerLatitude = Math.max(
+    -90,
+    Math.min(90, -90 + (latitudeIndex + 0.5) * latitudeSize),
+  );
+  const cosine = Math.max(
+    0.01,
+    Math.abs(Math.cos((centerLatitude * Math.PI) / 180)),
+  );
+  const longitudeSize = Math.min(
+    360,
+    cellMeters / (111_320 * cosine),
+  );
+  const longitudeIndex = Math.floor((longitude + 180) / longitudeSize);
+  const centerLongitude = Math.max(
+    -180,
+    Math.min(180, -180 + (longitudeIndex + 0.5) * longitudeSize),
+  );
+  return {
+    latitude: centerLatitude,
+    longitude: centerLongitude,
+    key: `${latitudeIndex}:${longitudeIndex}`,
+  };
+}
+
+function signalFieldCell(latitude: number, longitude: number) {
+  return spatialCell(latitude, longitude, SIGNAL_FIELD_CELL_METERS);
+}
+
+function getSignalCapabilityKey() {
+  if (signalCapabilityKey) return signalCapabilityKey;
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error("SESSION_SECRET is required for signal capabilities");
+  signalCapabilityKey = createHash("sha256")
+    .update(`line-signal-capability:${secret}`)
+    .digest();
+  return signalCapabilityKey;
+}
+
+function signalHandle(
+  userId: string,
+  letterId: string,
+  kind: SignalCapability["kind"],
+  cellKey: string | null,
+  guidance?: { distance: number; bearing: number },
+  origin?: { latitude: number; longitude: number },
+) {
+  const capability: SignalCapability = {
+    version: 1,
+    kind,
+    letterId,
+    userId,
+    cellKey,
+    expiresAt: Date.now() + SIGNAL_HANDLE_TTL_MS,
+    guidanceDistance: guidance?.distance ?? null,
+    guidanceBearing: guidance?.bearing ?? null,
+    originLatitude: origin?.latitude ?? null,
+    originLongitude: origin?.longitude ?? null,
+  };
+  const initializationVector = randomBytes(12);
+  const cipher = createCipheriv(
+    "aes-256-gcm",
+    getSignalCapabilityKey(),
+    initializationVector,
+  );
+  const encrypted = Buffer.concat([
+    cipher.update(JSON.stringify(capability), "utf8"),
+    cipher.final(),
+  ]);
+  return [
+    "sig1",
+    initializationVector.toString("base64url"),
+    encrypted.toString("base64url"),
+    cipher.getAuthTag().toString("base64url"),
+  ].join(".");
+}
+
+function readSignalHandle(handle: string, userId: string) {
+  try {
+    const [prefix, encodedVector, encodedPayload, encodedTag, ...remainder] =
+      handle.split(".");
+    if (
+      prefix !== "sig1"
+      || !encodedVector
+      || !encodedPayload
+      || !encodedTag
+      || remainder.length
+    ) return null;
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      getSignalCapabilityKey(),
+      Buffer.from(encodedVector, "base64url"),
+    );
+    decipher.setAuthTag(Buffer.from(encodedTag, "base64url"));
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(encodedPayload, "base64url")),
+      decipher.final(),
+    ]).toString("utf8");
+    const capability = JSON.parse(decrypted) as Partial<SignalCapability>;
+    if (
+      capability.version !== 1
+      || (
+        capability.kind !== "field"
+        && capability.kind !== "find"
+        && capability.kind !== "unlocked"
+      )
+      || typeof capability.letterId !== "string"
+      || capability.userId !== userId
+      || (typeof capability.cellKey !== "string" && capability.cellKey !== null)
+      || typeof capability.expiresAt !== "number"
+      || capability.expiresAt <= Date.now()
+      || (
+        capability.kind === "find"
+        && (
+          typeof capability.guidanceDistance !== "number"
+          || typeof capability.guidanceBearing !== "number"
+          || typeof capability.originLatitude !== "number"
+          || typeof capability.originLongitude !== "number"
+        )
+      )
+    ) return null;
+    return capability as SignalCapability;
+  } catch {
+    return null;
+  }
+}
+
+async function signalFieldRateLimited(req: Request, userId: string) {
+  const sessionId = getSessionId(req);
+  if (!sessionId) return true;
+  const session = await getSession(sessionId);
+  if (!session || session.user.id !== userId) return true;
+  const now = Date.now();
+  const rateLimit = session.signal_field_rate_limit;
+  if (rateLimit && now - rateLimit.window_started_at < 60_000) {
+    if (rateLimit.count >= SIGNAL_FIELD_RATE_LIMIT) return true;
+    session.signal_field_rate_limit = {
+      ...rateLimit,
+      count: rateLimit.count + 1,
+    };
+  } else {
+    session.signal_field_rate_limit = {
+      window_started_at: now,
+      count: 1,
+    };
+  }
+  await updateSession(sessionId, session);
+  return false;
+}
+
+async function consumeSignalFieldHandle(
+  userId: string,
+  handle: string,
+) {
+  return reserveSignalGuard(
+    signalGuardDigest("field", userId, handle),
+    1,
+  );
+}
+
+function signalGuardDigest(scope: string, ...values: string[]) {
+  return createHmac("sha256", getSignalCapabilityKey())
+    .update([scope, ...values].join("\u0000"))
+    .digest("base64url");
+}
+
+async function reserveSignalGuard(digest: string, maximum: number) {
+  return db.transaction(async (transaction) => {
+    await transaction.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${digest}, 0::bigint))`,
+    );
+    const [row] = await transaction
+      .select()
+      .from(signalGuardsTable)
+      .where(eq(signalGuardsTable.digest, digest));
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + SIGNAL_HANDLE_TTL_MS);
+    if (!row) {
+      await transaction.insert(signalGuardsTable).values({
+        digest,
+        count: 1,
+        expiresAt,
+      });
+      return true;
+    }
+    if (row.expiresAt <= now) {
+      await transaction
+        .update(signalGuardsTable)
+        .set({ count: 1, expiresAt, updatedAt: now })
+        .where(eq(signalGuardsTable.digest, digest));
+      return true;
+    }
+    if (row.count >= maximum) return false;
+    await transaction
+      .update(signalGuardsTable)
+      .set({
+        count: sql`${signalGuardsTable.count} + 1`,
+        updatedAt: now,
+      })
+      .where(eq(signalGuardsTable.digest, digest));
+    return true;
+  });
+}
+
+async function consumeProximityAttempt(
+  userId: string,
+  capability: SignalCapability,
+) {
+  return reserveSignalGuard(
+    signalGuardDigest(
+      "proximity",
+      userId,
+      capability.letterId,
+      capability.cellKey ?? "",
+    ),
+    3,
+  );
+}
+
+function coarseTimeRemaining(expiresAt: Date | null) {
+  if (!expiresAt) return null;
+  const remainingDays = (expiresAt.getTime() - Date.now()) / 86_400_000;
+  if (remainingDays <= 1) return "under_1_day" as const;
+  if (remainingDays <= 7) return "under_7_days" as const;
+  if (remainingDays <= 30) return "under_30_days" as const;
+  return "under_60_days" as const;
+}
+
+function lifecycleExpiration(
+  lifecycleKind: string,
+  expiresAt: Date | null,
+  createdAt: Date,
+) {
+  if (lifecycleKind === "permanent") return null;
+  if (expiresAt) return expiresAt;
+  const activeDays = lifecycleKind === "premium" ? 60 : 30;
+  return new Date(createdAt.getTime() + activeDays * 86_400_000);
+}
+
+function isLetterActive(letter: {
+  lifecycleKind: string;
+  expiresAt: Date | null;
+  createdAt: Date;
+}, now = new Date()) {
+  const expiresAt = lifecycleExpiration(
+    letter.lifecycleKind,
+    letter.expiresAt,
+    letter.createdAt,
+  );
+  return expiresAt === null || expiresAt > now;
+}
+
+function discoveryBounds(latitude: number, longitude: number, radius: number) {
+  const latitudeDelta = radius / 111_320;
+  const cosine = Math.cos((latitude * Math.PI) / 180);
+  const longitudeDelta = Math.abs(cosine) < 0.000001
+    ? 180
+    : Math.min(180, radius / (111_320 * Math.abs(cosine)));
+  const minLongitude = longitude - longitudeDelta;
+  const maxLongitude = longitude + longitudeDelta;
+  const longitudeBounds = longitudeDelta === 180
+    ? undefined
+    : minLongitude < -180
+      ? or(
+          gte(lettersTable.longitude, minLongitude + 360),
+          lte(lettersTable.longitude, maxLongitude),
+        )
+      : maxLongitude > 180
+        ? or(
+            gte(lettersTable.longitude, minLongitude),
+            lte(lettersTable.longitude, maxLongitude - 360),
+          )
+        : and(
+            gte(lettersTable.longitude, minLongitude),
+            lte(lettersTable.longitude, maxLongitude),
+          );
+  return {
+    latitudeBounds: and(
+      gte(lettersTable.latitude, Math.max(-90, latitude - latitudeDelta)),
+      lte(lettersTable.latitude, Math.min(90, latitude + latitudeDelta)),
+    ),
+    longitudeBounds,
+  };
 }
 
 function requireUser(req: Request, res: Response): string | null {
@@ -153,7 +490,13 @@ router.post("/letters", async (req, res) => {
   if (!text) return invalid(res, "Letter cannot be blank");
   const [letter] = await db
     .insert(lettersTable)
-    .values({ ...parsed.data, text, writerId: userId })
+    .values({
+      ...parsed.data,
+      text,
+      writerId: userId,
+      lifecycleKind: "free",
+      expiresAt: new Date(Date.now() + 30 * 86_400_000),
+    })
     .onConflictDoNothing()
     .returning();
   if (!letter) return res.status(409).json({ error: "A letter with this ID already exists" });
@@ -164,63 +507,212 @@ router.get("/letters/nearby", async (req, res) => {
   const userId = requireUser(req, res);
   if (!userId) return;
   const parsed = GetNearbyLineLettersQueryParams.safeParse(req.query);
-  if (!parsed.success) return invalid(res, "A valid location is required");
-  const radius = Math.min(parsed.data.radius ?? DISCOVERY_RANGE_METERS, DISCOVERY_RANGE_METERS);
-  const latitudeDelta = radius / 111_320;
-  const cosine = Math.cos((parsed.data.latitude * Math.PI) / 180);
-  const longitudeDelta = Math.abs(cosine) < 0.000001
-    ? 180
-    : Math.min(180, radius / (111_320 * Math.abs(cosine)));
-  const minLongitude = parsed.data.longitude - longitudeDelta;
-  const maxLongitude = parsed.data.longitude + longitudeDelta;
-  const longitudeBounds = longitudeDelta === 180
-    ? undefined
-    : minLongitude < -180
-      ? or(
-          gte(lettersTable.longitude, minLongitude + 360),
-          lte(lettersTable.longitude, maxLongitude),
-        )
-      : maxLongitude > 180
-        ? or(
-            gte(lettersTable.longitude, minLongitude),
-            lte(lettersTable.longitude, maxLongitude - 360),
-          )
-        : and(
-            gte(lettersTable.longitude, minLongitude),
-            lte(lettersTable.longitude, maxLongitude),
-          );
+  if (!parsed.success) return invalid(res, "A valid location and FIND target are required");
+  if (await signalFieldRateLimited(req, userId)) {
+    return res.status(429).json({ error: "The signal field is refreshing too quickly" });
+  }
+  const targetCapability = readSignalHandle(parsed.data.targetHandle, userId);
+  if (
+    !targetCapability
+    || targetCapability.kind !== "find"
+  ) {
+    return res.status(404).json({ error: "This signal is no longer available" });
+  }
+  const requestCell = signalFieldCell(
+    parsed.data.latitude,
+    parsed.data.longitude,
+  );
+  if (targetCapability.cellKey !== requestCell.key) {
+    return res.status(404).json({ error: "This signal is no longer available" });
+  }
+  const now = new Date();
   const letters = await db
     .select()
     .from(lettersTable)
     .where(and(
       eq(lettersTable.visibility, "nearby"),
+      eq(lettersTable.status, "dropped"),
       ne(lettersTable.writerId, userId),
-      gte(lettersTable.latitude, Math.max(-90, parsed.data.latitude - latitudeDelta)),
-      lte(lettersTable.latitude, Math.min(90, parsed.data.latitude + latitudeDelta)),
-      longitudeBounds,
+      eq(lettersTable.id, targetCapability.letterId),
+      or(
+        eq(lettersTable.lifecycleKind, "permanent"),
+        sql`COALESCE(
+          ${lettersTable.expiresAt},
+          ${lettersTable.createdAt} + CASE
+            WHEN ${lettersTable.lifecycleKind} = 'premium' THEN INTERVAL '60 days'
+            ELSE INTERVAL '30 days'
+          END
+        ) > ${now}`,
+      ),
     ))
     .orderBy(desc(lettersTable.createdAt));
   const nearby = letters.flatMap((letter) => {
-    const distance = distanceMeters(
-      parsed.data.latitude,
-      parsed.data.longitude,
-      letter.latitude,
-      letter.longitude,
-    );
-    if (distance > radius) return [];
+    if (!isLetterActive(letter, now)) return [];
     return [
       {
-        ...nearbyLetterResponse(letter, distance),
-        bearingDegrees: privacySafeBearingDegrees(
-          parsed.data.latitude,
-          parsed.data.longitude,
-          letter.latitude,
-          letter.longitude,
+        ...nearbyLetterResponse(letter, DISCOVERY_RANGE_METERS + 1),
+        id: parsed.data.targetHandle,
+        createdAt: new Date(
+          Math.floor(letter.createdAt.getTime() / 86_400_000) * 86_400_000,
         ),
+        distanceMeters: targetCapability.guidanceDistance,
+        bearingDegrees: targetCapability.guidanceBearing,
       },
     ];
   });
   res.json(GetNearbyLineLettersResponse.parse(nearby));
+});
+
+router.get("/signals/field", async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const parsed = GetLineSignalFieldQueryParams.safeParse(req.query);
+  if (!parsed.success) return invalid(res, "A valid location is required");
+  if (await signalFieldRateLimited(req, userId)) {
+    return res.status(429).json({ error: "The signal field is refreshing too quickly" });
+  }
+
+  const cell = signalFieldCell(parsed.data.latitude, parsed.data.longitude);
+  const bounds = discoveryBounds(
+    cell.latitude,
+    cell.longitude,
+    SIGNAL_FIELD_RADIUS_METERS,
+  );
+  const now = new Date();
+  const candidates = await db
+    .select({
+      id: lettersTable.id,
+      latitude: lettersTable.latitude,
+      longitude: lettersTable.longitude,
+      status: lettersTable.status,
+      visibility: lettersTable.visibility,
+      lifecycleKind: lettersTable.lifecycleKind,
+      expiresAt: lettersTable.expiresAt,
+      createdAt: lettersTable.createdAt,
+    })
+    .from(lettersTable)
+    .where(and(
+      eq(lettersTable.visibility, "nearby"),
+      eq(lettersTable.status, "dropped"),
+      ne(lettersTable.writerId, userId),
+      or(
+        eq(lettersTable.lifecycleKind, "permanent"),
+        sql`COALESCE(
+          ${lettersTable.expiresAt},
+          ${lettersTable.createdAt} + CASE
+            WHEN ${lettersTable.lifecycleKind} = 'premium' THEN INTERVAL '60 days'
+            ELSE INTERVAL '30 days'
+          END
+        ) > ${now}`,
+      ),
+      bounds.latitudeBounds,
+      bounds.longitudeBounds,
+    ))
+    .orderBy(asc(lettersTable.createdAt));
+
+  const ranked = candidates
+    .flatMap((letter) => {
+      const distance = distanceMeters(
+        cell.latitude,
+        cell.longitude,
+        letter.latitude,
+        letter.longitude,
+      );
+      if (
+        distance > SIGNAL_FIELD_RADIUS_METERS
+        || letter.status !== "dropped"
+        || letter.visibility !== "nearby"
+        || !isLetterActive(letter, now)
+      ) {
+        return [];
+      }
+      return [{ letter, distance }];
+    })
+    .sort((first, second) => first.distance - second.distance)
+    .slice(0, SIGNAL_FIELD_LIMIT)
+    .map(({ letter, distance }, index) => {
+      const expiresAt = lifecycleExpiration(
+        letter.lifecycleKind,
+        letter.expiresAt,
+        letter.createdAt,
+      );
+      return {
+        handle: signalHandle(userId, letter.id, "field", cell.key),
+        hierarchy: index === 0 ? "primary" as const : index === 1 ? "secondary" as const : "tertiary" as const,
+        distanceBand: distanceBand(distance),
+        bearingSector: bearingSector(
+          cell.latitude,
+          cell.longitude,
+          letter.latitude,
+          letter.longitude,
+        ),
+        availability: "active" as const,
+        lifecycleKind: letter.lifecycleKind,
+        timeRemaining: coarseTimeRemaining(expiresAt),
+      };
+    });
+
+  res.json(GetLineSignalFieldResponse.parse(ranked));
+});
+
+router.post("/signals/resolve", async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const body = ResolveLineSignalBody.safeParse(req.body);
+  if (!body.success) return invalid(res, "A valid signal and location are required");
+  const handleRecord = readSignalHandle(body.data.handle, userId);
+  const cell = signalFieldCell(body.data.latitude, body.data.longitude);
+  if (
+    !handleRecord
+    || handleRecord.kind !== "field"
+    || handleRecord.cellKey !== cell.key
+  ) {
+    return res.status(404).json({ error: "This signal is no longer available" });
+  }
+  const [letter] = await db
+    .select()
+    .from(lettersTable)
+    .where(eq(lettersTable.id, handleRecord.letterId));
+  if (
+    !letter
+    || letter.writerId === userId
+    || letter.visibility !== "nearby"
+    || letter.status !== "dropped"
+    || !isLetterActive(letter)
+    || distanceMeters(
+      body.data.latitude,
+      body.data.longitude,
+      letter.latitude,
+      letter.longitude,
+    ) > DISCOVERY_RANGE_METERS
+  ) {
+    return res.status(404).json({ error: "This signal is no longer available" });
+  }
+  if (!await consumeSignalFieldHandle(userId, body.data.handle)) {
+    return res.status(404).json({ error: "This signal is no longer available" });
+  }
+  const guidanceDistance = Math.round(distanceMeters(
+    cell.latitude,
+    cell.longitude,
+    letter.latitude,
+    letter.longitude,
+  ));
+  const guidanceBearing = privacySafeBearingDegrees(
+    cell.latitude,
+    cell.longitude,
+    letter.latitude,
+    letter.longitude,
+  );
+  res.json(ResolveLineSignalResponse.parse({
+    targetHandle: signalHandle(
+      userId,
+      letter.id,
+      "find",
+      cell.key,
+      { distance: guidanceDistance, bearing: guidanceBearing },
+      { latitude: body.data.latitude, longitude: body.data.longitude },
+    ),
+  }));
 });
 
 router.get("/letters/mine", async (req, res) => {
@@ -249,18 +741,60 @@ router.get("/letters/:letterId", async (req, res) => {
   const params = GetLineLetterParams.safeParse(req.params);
   const query = GetLineLetterQueryParams.safeParse(req.query);
   if (!params.success || !query.success) return invalid(res, "A valid letter and location are required");
-  const [letter] = await db.select().from(lettersTable).where(eq(lettersTable.id, params.data.letterId));
+  const capability = readSignalHandle(params.data.letterId, userId);
+  if (
+    params.data.letterId.startsWith("sig1.")
+    && capability?.kind !== "find"
+    && capability?.kind !== "unlocked"
+  ) {
+    return res.status(404).json({ error: "Letter not found" });
+  }
+  const letterId = capability?.letterId ?? params.data.letterId;
+  const [letter] = await db.select().from(lettersTable).where(eq(lettersTable.id, letterId));
   if (!letter) return res.status(404).json({ error: "Letter not found" });
   const isOwn = letter.writerId === userId;
+  if (!isOwn && !isLetterActive(letter)) {
+    return res.status(404).json({ error: "Letter not found" });
+  }
+  if (capability?.kind === "find") {
+    const observationAge = Math.abs(Date.now() - query.data.observedAt);
+    const elapsedSeconds = Math.max(
+      0,
+      (Date.now() - (capability.expiresAt - SIGNAL_HANDLE_TTL_MS)) / 1000,
+    );
+    const plausibleTravel = Math.max(10, elapsedSeconds * 3) + query.data.accuracy;
+    const plausibleLocation = distanceMeters(
+      capability.originLatitude!,
+      capability.originLongitude!,
+      query.data.latitude,
+      query.data.longitude,
+    ) <= plausibleTravel;
+    if (
+      observationAge > 15_000
+      || !plausibleLocation
+      || !await consumeProximityAttempt(userId, capability)
+    ) {
+      return res.status(429).json({ error: "Start a new FIND before checking again" });
+    }
+  }
   const distance = distanceMeters(
     query.data.latitude,
     query.data.longitude,
     letter.latitude,
     letter.longitude,
   );
-  const unlocked = isOwn || distance <= UNLOCK_DISTANCE_METERS;
+  const unlocked = isOwn
+    || capability?.kind === "unlocked"
+    || distance <= UNLOCK_DISTANCE_METERS;
   if (!unlocked) return res.status(403).json({ error: "Move within 10m to open this letter" });
-  res.json(GetLineLetterResponse.parse(nearbyLetterResponse(letter, distance, isOwn)));
+  res.json(GetLineLetterResponse.parse({
+    ...nearbyLetterResponse(letter, distance, isOwn),
+    id: capability?.kind === "find"
+      ? signalHandle(userId, letter.id, "unlocked", capability.cellKey)
+      : capability
+        ? params.data.letterId
+        : letter.id,
+  }));
 });
 
 router.post("/letters/:letterId/replies", async (req, res) => {
@@ -271,10 +805,18 @@ router.post("/letters/:letterId/replies", async (req, res) => {
   if (!params.success || !body.success) return invalid(res, "Reply text and location are required");
   const text = body.data.text.trim();
   if (!text) return invalid(res, "Reply cannot be blank");
-  const [letter] = await db.select().from(lettersTable).where(eq(lettersTable.id, params.data.letterId));
+  const capability = readSignalHandle(params.data.letterId, userId);
+  if (params.data.letterId.startsWith("sig1.") && capability?.kind !== "unlocked") {
+    return res.status(404).json({ error: "Letter not found" });
+  }
+  const letterId = capability?.letterId ?? params.data.letterId;
+  const [letter] = await db.select().from(lettersTable).where(eq(lettersTable.id, letterId));
   if (!letter) return res.status(404).json({ error: "Letter not found" });
   if (letter.writerId === userId) return res.status(403).json({ error: "You cannot reply to your own letter" });
+  if (!isLetterActive(letter)) return res.status(404).json({ error: "Letter not found" });
   if (
+    !capability
+    &&
     distanceMeters(body.data.latitude, body.data.longitude, letter.latitude, letter.longitude) >
     UNLOCK_DISTANCE_METERS
   ) {
@@ -300,7 +842,7 @@ router.post("/letters/:letterId/replies", async (req, res) => {
   res.status(201).json(
     CreateLineReplyResponse.parse({
       id: reply.id,
-      letterId: reply.letterId,
+      letterId: capability ? params.data.letterId : reply.letterId,
       text: reply.text,
       createdAt: reply.createdAt,
       status: "sent",
@@ -479,6 +1021,8 @@ router.post("/migration/local", async (req, res) => {
         writerId: userId,
         text: source.text.trim(),
         createdAt: source.createdAt,
+        lifecycleKind: "free",
+        expiresAt: new Date(source.createdAt.getTime() + 30 * 86_400_000),
       })
       .onConflictDoNothing()
       .returning({ id: lettersTable.id });

@@ -2,7 +2,7 @@ export type LineProfile = { id: string; displayName: string; createdAt: string }
 export type Letter = {
   id: string; text: string | null; createdAt: string; latitude: number; longitude: number;
   accuracy: number; visibility: 'nearby'; anonymous: true; status: 'dropped'; isOwn: boolean;
-  isUnlocked?: boolean; replyCount?: number;
+  isUnlocked?: boolean; distanceMeters?: number; replyCount?: number;
 };
 export type NearbyLetterRecord = {
   id: string; text: string | null; createdAt: string; visibility: 'nearby';
@@ -32,8 +32,15 @@ const query = (location: Pick<LocationPayload, 'latitude' | 'longitude'>) => `?l
 export const api = {
   profile: () => request<LineProfile>('/profile'),
   updateProfile: (displayName: string) => request<LineProfile>('/profile', { method: 'PATCH', body: JSON.stringify({ displayName }) }),
-  nearby: (location: Pick<LocationPayload, 'latitude' | 'longitude'>) => request<NearbyLetterRecord[]>(`/letters/nearby${query(location)}&radius=100`),
-  letter: (id: string, location: Pick<LocationPayload, 'latitude' | 'longitude'>) => request<Letter>(`/letters/${encodeURIComponent(id)}${query(location)}`),
+  nearby: (location: Pick<LocationPayload, 'latitude' | 'longitude'>, targetHandle: string) => request<NearbyLetterRecord[]>(
+    `/letters/nearby${query(location)}&targetHandle=${encodeURIComponent(targetHandle)}`,
+  ),
+  letter: (
+    id: string,
+    location: Pick<LocationPayload, 'latitude' | 'longitude' | 'accuracy'> & { timestamp: number },
+  ) => request<Letter>(
+    `/letters/${encodeURIComponent(id)}${query(location)}&accuracy=${encodeURIComponent(location.accuracy)}&observedAt=${encodeURIComponent(location.timestamp)}`,
+  ),
   createLetter: (data: LocationPayload & { id: string; text: string; visibility: 'nearby'; anonymous: true; status: 'dropped' }) => request<Letter>('/letters', { method: 'POST', body: JSON.stringify(data) }),
   myLetters: () => request<Letter[]>('/letters/mine'),
   repliesForLetter: (id: string, location: Pick<LocationPayload, 'latitude' | 'longitude'>) => request<WriterReply[]>(`/letters/${encodeURIComponent(id)}/replies${query(location)}`),

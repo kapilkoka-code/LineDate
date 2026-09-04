@@ -119,3 +119,14 @@ Pass condition: the lights remain fixed in the physical reference space while th
 - The web path does not currently use fake occlusion, plane geometry, or depth masking.
 - Availability of optional WebXR anchors, lighting, and depth features varies by Chrome, ARCore, and device.
 - Persistent geospatial/VPS relocalization and equivalent iPhone support require a future native/hybrid ARKit + ARCore implementation.
+
+## iPad 3D map validation record
+
+- Date: 2026-09-05
+- Device: iPad Pro 11-inch (2nd generation)
+- OS: iPadOS 26.6
+- Browser: Safari (bundled with iPadOS 26.6)
+- Result: PASS
+- The authenticated HOME screen opened without a Vite error overlay or shader/reserved-word error.
+- WebGL 2 was available and the Cesium globe rendered cleanly.
+- The globe remained clean through HOME → FIND → HOME.

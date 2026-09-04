@@ -1,4 +1,4 @@
-import { Camera, Compass, RefreshCw } from 'lucide-react';
+import { Camera, Compass, RefreshCw, ScanLine } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -12,6 +12,7 @@ import { LetterReader } from '@/components/line/DiscoveryField';
 import { LineMark } from '@/components/line/LineMark';
 import { ReplyComposer } from '@/components/line/ReplyComposer';
 import type { LocationState } from '@/hooks/useLocation';
+import { useArCapability } from '@/hooks/useArCapability';
 import {
   normalizeDegrees,
   signedAngleDifference,
@@ -21,6 +22,12 @@ import {
 import type { NearbyLetter } from '@/services/discovery';
 import { playFindSound } from '@/services/findSound';
 import { getSpatialLineMetrics } from '@/services/spatialLine';
+import {
+  startWorldArSession,
+  type WorldArController,
+  type WorldArDiagnostics,
+  type WorldArEndReason,
+} from '@/services/worldArSession';
 
 type CameraState = 'prompt' | 'requesting' | 'granted' | 'denied' | 'simulated';
 
@@ -46,6 +53,16 @@ const FIND_REFRESH_INTERVAL_MS = 15_000;
 const SIMULATED_DISTANCES = [100, 50, 20, 10, 5] as const;
 const SIMULATED_BEARINGS = [0, 90, 180, 270] as const;
 const SIMULATED_HEADINGS = [0, 90, 180, 270] as const;
+const INITIAL_AR_DIAGNOSTICS: WorldArDiagnostics = {
+  trackingState: 'ended',
+  confidence: 'unavailable',
+  cameraPosition: null,
+  cameraOrientation: null,
+  anchorState: 'ended',
+  referenceSpace: 'unavailable',
+  trackingLosses: 0,
+  framesPerSecond: null,
+};
 
 function signalIntensity(distanceMeters: number, isUnlocked: boolean) {
   if (isUnlocked) return 1;
@@ -86,8 +103,15 @@ export function CameraView({
   const [simulatedHeading, setSimulatedHeading] = useState<number>(0);
   const [showTestControls, setShowTestControls] = useState(false);
   const [pulseLetterId, setPulseLetterId] = useState<string | null>(null);
+  const [worldArActive, setWorldArActive] = useState(false);
+  const [worldArStarting, setWorldArStarting] = useState(false);
+  const [worldArStatus, setWorldArStatus] = useState<string | null>(null);
+  const [worldArDiagnostics, setWorldArDiagnostics] = useState<WorldArDiagnostics>(INITIAL_AR_DIAGNOSTICS);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraRootRef = useRef<HTMLDivElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const worldArControllerRef = useRef<WorldArController | null>(null);
+  const worldArRequestRef = useRef(0);
   const cameraRequestRef = useRef(0);
   const mountedRef = useRef(true);
   const dragRef = useRef<{ pointerId: number; startX: number; startYaw: number } | null>(null);
@@ -133,7 +157,15 @@ export function CameraView({
   }, [cameraState, prioritizedLetters, simulatedBearing, simulatedDistance]);
 
   const primarySignal = visualSignals[0] ?? null;
-  const cameraViewVisible = pageVisible && selectedLetter === null;
+  const gpsDirectionUncertain = Boolean(
+    primarySignal
+    && location.location
+    && location.location.accuracy > Math.max(35, primarySignal.distanceMeters * 1.25),
+  );
+  const cameraViewVisible = pageVisible
+    && selectedLetter === null
+    && !worldArActive
+    && !worldArStarting;
   const orientation = useOrientationController({
     active: cameraState === 'granted' && cameraViewVisible,
     gpsAccuracy: location.location?.accuracy ?? null,
@@ -154,6 +186,13 @@ export function CameraView({
     : sensorHeadingAvailable
       ? orientation.confidence
       : 'unavailable';
+  const arCapability = useArCapability({
+    cameraAvailable: cameraState !== 'denied' && Boolean(navigator.mediaDevices?.getUserMedia),
+    trustedHeadingAvailable: sensorHeadingAvailable
+      && orientation.confidence === 'high'
+      && !gpsDirectionUncertain
+      && location.location !== null,
+  });
 
   const releaseCurrentStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -222,6 +261,9 @@ export function CameraView({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      worldArRequestRef.current += 1;
+      void worldArControllerRef.current?.end('system');
+      worldArControllerRef.current = null;
       stopCamera();
     };
   }, [stopCamera]);
@@ -236,6 +278,12 @@ export function CameraView({
   }, []);
 
   useEffect(() => {
+    if (worldArActive || worldArStatus !== 'Using directional finding…') return;
+    const timeout = window.setTimeout(() => setWorldArStatus(null), 2_800);
+    return () => window.clearTimeout(timeout);
+  }, [worldArActive, worldArStatus]);
+
+  useEffect(() => {
     if (cameraState !== 'granted' || !cameraViewVisible) return;
     const interval = window.setInterval(onRefresh, FIND_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
@@ -243,10 +291,30 @@ export function CameraView({
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      setPageVisible(document.visibilityState === 'visible');
+      const visible = document.visibilityState === 'visible';
+      setPageVisible(visible);
+      if (!visible) {
+        worldArRequestRef.current += 1;
+        const controller = worldArControllerRef.current;
+        worldArControllerRef.current = null;
+        setWorldArActive(false);
+        setWorldArStarting(false);
+        setWorldArStatus(null);
+        setWorldArDiagnostics(INITIAL_AR_DIAGNOSTICS);
+        void controller?.end('backgrounded');
+        stopCamera();
+      }
     };
     const handlePageHide = () => {
       setPageVisible(false);
+      worldArRequestRef.current += 1;
+      const controller = worldArControllerRef.current;
+      worldArControllerRef.current = null;
+      setWorldArActive(false);
+      setWorldArStarting(false);
+      setWorldArStatus(null);
+      setWorldArDiagnostics(INITIAL_AR_DIAGNOSTICS);
+      void controller?.end('backgrounded');
       stopCamera();
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -258,6 +326,98 @@ export function CameraView({
       window.removeEventListener('pagehide', handlePageHide);
     };
   }, [stopCamera]);
+
+  const restoreDirectionalFinding = useCallback((reason: WorldArEndReason) => {
+    worldArControllerRef.current = null;
+    if (!mountedRef.current) return;
+    setWorldArActive(false);
+    setWorldArStarting(false);
+    setWorldArDiagnostics(INITIAL_AR_DIAGNOSTICS);
+    setWorldArStatus(reason === 'tracking-lost' ? 'Using directional finding…' : null);
+    onRefresh();
+    void acquireCamera().then((result) => {
+      if (mountedRef.current && result === 'denied') setCameraState('denied');
+    });
+  }, [acquireCamera, onRefresh]);
+
+  const startWorldView = useCallback(async () => {
+    const overlayRoot = cameraRootRef.current;
+    if (
+      !overlayRoot
+      || !sensorHeadingAvailable
+      || cameraState !== 'granted'
+      || visualSignals.length === 0
+      || worldArStarting
+      || arCapability.state !== 'WORLD_AR_SUPPORTED'
+    ) return;
+
+    const requestId = worldArRequestRef.current + 1;
+    worldArRequestRef.current = requestId;
+    setWorldArStarting(true);
+    setWorldArStatus('Calibrating surroundings…');
+    stopCamera();
+
+    try {
+      const controller = await startWorldArSession({
+        overlayRoot,
+        headingDegrees: visualHeading,
+        signals: visualSignals.map((signal, index) => ({
+          id: signal.id,
+          distanceMeters: signal.distanceMeters,
+          bearingDegrees: signal.bearingDegrees,
+          prominence: index === 0 ? 'primary' : index === 1 ? 'secondary' : 'tertiary',
+          isUnlocked: signal.isUnlocked,
+        })),
+        onControllerReady: (pendingController) => {
+          if (
+            !mountedRef.current
+            || worldArRequestRef.current !== requestId
+            || document.visibilityState !== 'visible'
+          ) {
+            void pendingController.end('backgrounded');
+            return;
+          }
+          worldArControllerRef.current = pendingController;
+        },
+        onDiagnostics: (diagnostics) => {
+          if (worldArRequestRef.current === requestId) setWorldArDiagnostics(diagnostics);
+        },
+        onEnded: (reason) => {
+          if (worldArRequestRef.current === requestId) restoreDirectionalFinding(reason);
+        },
+      });
+      if (
+        !mountedRef.current
+        || worldArRequestRef.current !== requestId
+        || document.visibilityState !== 'visible'
+      ) {
+        await controller.end('system');
+        return;
+      }
+      worldArControllerRef.current = controller;
+      setWorldArActive(true);
+      setWorldArStatus(null);
+    } catch {
+      if (!mountedRef.current || worldArRequestRef.current !== requestId) return;
+      worldArControllerRef.current = null;
+      setWorldArDiagnostics(INITIAL_AR_DIAGNOSTICS);
+      setWorldArStatus('Using directional finding…');
+      const result = await acquireCamera();
+      if (mountedRef.current && result === 'denied') setCameraState('denied');
+    } finally {
+      if (mountedRef.current && worldArRequestRef.current === requestId) setWorldArStarting(false);
+    }
+  }, [
+    acquireCamera,
+    arCapability.state,
+    cameraState,
+    restoreDirectionalFinding,
+    sensorHeadingAvailable,
+    stopCamera,
+    visualHeading,
+    visualSignals,
+    worldArStarting,
+  ]);
 
   useEffect(() => {
     if (cameraState !== 'granted') return;
@@ -441,11 +601,6 @@ export function CameraView({
   }
 
   const locationUnavailable = location.status !== 'active' || !location.location;
-  const gpsDirectionUncertain = Boolean(
-    primarySignal
-    && location.location
-    && location.location.accuracy > Math.max(35, primarySignal.distanceMeters * 1.25),
-  );
   const sensorNeedsCalibration = cameraState === 'granted'
     && sensorHeadingAvailable
     && directionalConfidence === 'low'
@@ -473,50 +628,56 @@ export function CameraView({
             : primarySignal.distanceMeters <= 25
               ? ['APPROACHING', 'You’re getting closer.']
               : ['DETECTED', 'Something is nearby.'];
+  const visibleStatus = worldArActive
+    ? worldArDiagnostics.trackingState !== 'tracking'
+      ? ['CALIBRATING', 'Calibrating surroundings…']
+      : ['LIGHT ANCHORED', 'The light is fixed around you.']
+    : primaryStatus;
 
   return (
     <div
-      className="line-camera-active"
+      ref={cameraRootRef}
+      className={`line-camera-active${worldArActive ? ' line-world-ar-active' : ''}`}
       data-testid="screen-find-active"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
     >
-      {cameraState === 'granted' ? (
+      {cameraState === 'granted' && !worldArActive ? (
         <video ref={attachVideo} autoPlay playsInline muted className="line-camera-video" aria-label="Live rear camera view" />
-      ) : (
+      ) : !worldArActive ? (
         <div className="line-camera-simulated-bg" aria-label="Development camera simulation">
           <div className="line-simulated-grid" style={{ backgroundPositionX: `${-visualHeading * 4}px` }} />
         </div>
-      )}
-      <div className="line-camera-vignette" aria-hidden="true" />
+      ) : null}
+      {!worldArActive && <div className="line-camera-vignette" aria-hidden="true" />}
 
       <div className="line-camera-overlay">
         <header className="line-camera-overlay-header">
           <LineMark compact light />
           <div className="line-camera-status line-mono">
-            <span>{cameraState === 'simulated' ? 'TEST VIEW' : 'LIVE FIND'}</span>
-            <span>{sensorHeadingAvailable ? 'ORIENTATION ACTIVE' : 'DRAG TO LOOK AROUND'}</span>
+            <span>{worldArActive ? 'WORLD VIEW' : cameraState === 'simulated' ? 'TEST VIEW' : 'LIVE FIND'}</span>
+            <span>{worldArActive ? 'LIGHT FIXED IN PLACE' : sensorHeadingAvailable ? 'ORIENTATION ACTIVE' : 'DRAG TO LOOK AROUND'}</span>
           </div>
         </header>
 
         <div className="line-find-state" role="status" aria-live="polite" data-testid="state-find-discovery">
-          <span className="line-mono">{primaryStatus[0]}</span>
-          <strong className="line-serif">{primaryStatus[1]}</strong>
+           <span className="line-mono">{visibleStatus[0]}</span>
+           <strong className="line-serif">{visibleStatus[1]}</strong>
           {primarySignal && <small className="line-mono">{Math.max(1, Math.round(primarySignal.distanceMeters))} m away</small>}
         </div>
 
-        {(gpsDirectionUncertain || sensorNeedsCalibration) && (
+        {(worldArStatus || gpsDirectionUncertain || sensorNeedsCalibration) && (
           <div className="line-find-calibration" role="status" data-testid="state-find-calibration">
             <span className="line-mono">
-              {gpsDirectionUncertain ? 'Finding a clearer signal…' : 'Calibrating direction…'}
+              {worldArStatus ?? (gpsDirectionUncertain ? 'Finding a clearer signal…' : 'Calibrating direction…')}
             </span>
-            {sensorNeedsCalibration && <small>Move your phone slowly in a small circle.</small>}
+            {!worldArStatus && sensorNeedsCalibration && <small>Move your phone slowly in a small circle.</small>}
           </div>
         )}
 
-        {visualSignals.map((signal, index) => {
+        {!worldArActive && visualSignals.map((signal, index) => {
           const difference = signedAngleDifference(signal.bearingDegrees, visualHeading);
           const absDiff = Math.abs(difference);
           const beamVisibility = Math.max(0, 1 - Math.max(0, absDiff - 35) / 40);
@@ -557,7 +718,7 @@ export function CameraView({
           );
         })}
 
-        <div className="line-camera-crosshair" aria-hidden="true" />
+        {!worldArActive && <div className="line-camera-crosshair" aria-hidden="true" />}
 
         <div className="line-find-controls">
           {locationUnavailable || networkError ? (
@@ -566,6 +727,29 @@ export function CameraView({
               {locationUnavailable ? 'Enable location' : 'Refresh signals'}
             </button>
           ) : null}
+          {worldArActive ? (
+            <button
+              type="button"
+              className="line-find-world-ar line-mono"
+              onClick={() => void worldArControllerRef.current?.end('user')}
+              data-testid="button-exit-world-ar"
+            >
+              Exit world view
+            </button>
+          ) : arCapability.state === 'WORLD_AR_SUPPORTED'
+            && cameraState === 'granted'
+            && primarySignal ? (
+              <button
+                type="button"
+                className="line-find-world-ar line-mono"
+                onClick={() => void startWorldView()}
+                disabled={worldArStarting}
+                data-testid="button-start-world-ar"
+              >
+                <ScanLine size={13} aria-hidden="true" />
+                {worldArStarting ? 'Calibrating…' : 'Enter world view'}
+              </button>
+            ) : null}
           {DEVELOPMENT_MODE && cameraState === 'simulated' && (
             <button
               type="button"
@@ -652,6 +836,12 @@ export function CameraView({
               <div><dt>GPS / age</dt><dd>{location.location ? `±${Math.round(location.location.accuracy)}m / ${Math.round((orientation.locationAgeMs ?? 0) / 1000)}s` : 'Unavailable'}</dd></div>
               <div><dt>Sensors</dt><dd>{orientation.diagnostics.orientationAvailable ? 'Orientation' : 'Touch'} · {orientation.diagnostics.motionAvailable ? 'Motion' : 'No motion'}</dd></div>
               <div><dt>Screen</dt><dd>{orientation.diagnostics.screenOrientation}°</dd></div>
+              <div><dt>AR capability</dt><dd>{arCapability.state}</dd></div>
+              <div><dt>AR tracking</dt><dd>{worldArDiagnostics.trackingState.toUpperCase()} / {worldArDiagnostics.confidence.toUpperCase()}</dd></div>
+              <div><dt>AR pose</dt><dd>{worldArDiagnostics.cameraPosition ? `${worldArDiagnostics.cameraPosition.x.toFixed(2)}, ${worldArDiagnostics.cameraPosition.y.toFixed(2)}, ${worldArDiagnostics.cameraPosition.z.toFixed(2)}` : 'Unavailable'}</dd></div>
+              <div><dt>AR rotation</dt><dd>{worldArDiagnostics.cameraOrientation ? `${worldArDiagnostics.cameraOrientation.x.toFixed(2)}, ${worldArDiagnostics.cameraOrientation.y.toFixed(2)}, ${worldArDiagnostics.cameraOrientation.z.toFixed(2)}, ${worldArDiagnostics.cameraOrientation.w.toFixed(2)}` : 'Unavailable'}</dd></div>
+              <div><dt>AR anchor</dt><dd>{worldArDiagnostics.anchorState} / {worldArDiagnostics.referenceSpace}</dd></div>
+              <div><dt>AR losses / FPS</dt><dd>{worldArDiagnostics.trackingLosses} / {worldArDiagnostics.framesPerSecond?.toFixed(0) ?? '—'}</dd></div>
             </dl>
             <p>Visual simulation only. Server access remains locked.</p>
           </aside>

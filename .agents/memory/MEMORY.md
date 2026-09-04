@@ -2,3 +2,4 @@
 - [Camera drag controls](camera-drag-controls.md) — camera drag surfaces must not capture pointer events that begin on nested controls.
 - [Earth-referenced headings](earth-referenced-headings.md) — physical bearings may use only verified absolute compass sources; relative alpha must fall back to touch.
 - [Spatial signal visibility](spatial-signal-visibility.md) — directional beam fade and edge atmosphere need independent opacity; motion must never override either curve.
+- [World AR scope](world-ar-scope.md) — browser AR is session-local on supported Android Chrome; iOS stays sensor-spatial, and north alignment requires the first real XR pose.

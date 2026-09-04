@@ -1,0 +1,376 @@
+STEP 17 — TRUE WORLD-ANCHORED AR
+
+We now have Steps 14–16 complete.
+
+The LINE FIND experience already has:
+
+* Cinematic twin-beam visualization
+* Calibrated GPS + heading/sensor layer
+* Distance/depth-responsive beams
+* Primary/secondary/tertiary signal hierarchy
+* Off-screen atmospheric presence
+* Day/night adaptation
+* Reduced-motion support
+* Touch fallback
+* Server-authoritative proximity/unlock enforcement
+* Cesium WebGL fallback
+
+Do NOT rebuild or replace these systems.
+
+The goal of Step 17 is to investigate and implement true world-anchored AR as a progressive enhancement, while preserving the existing experience on devices/browsers that cannot support it.
+
+1. FIRST — AUDIT THE CURRENT STACK
+
+Before writing implementation code:
+
+Inspect the existing LINE frontend, backend, sensor layer, CinematicLine, camera FIND screen, and Cesium fallback.
+
+Determine:
+
+* Current framework/runtime
+* Browser/mobile deployment model
+* iOS Safari capabilities
+* Android Chrome capabilities
+* Existing WebXR support
+* Existing camera pipeline
+* Existing orientation/sensor APIs
+* Whether the current architecture can safely support WebXR
+* Whether a native/hybrid AR layer would eventually be required for full ARKit/ARCore support
+
+Do NOT add a large AR framework simply because it exists.
+
+Document the result before implementation.
+
+2. PROGRESSIVE AR ARCHITECTURE
+
+Create an AR capability layer:
+
+AR capability states:
+
+1. WORLD_AR_SUPPORTED
+2. SENSOR_SPATIAL_MODE
+3. CAMERA_ONLY
+4. MAP_FALLBACK
+
+Preferred hierarchy:
+
+WORLD-ANCHORED AR
+↓
+Existing Step 15/16 sensor-based spatial LINE
+↓
+Existing camera experience
+↓
+Existing map/Cesium fallback
+
+The user must never experience a broken AR screen simply because their device does not support world tracking.
+
+3. TRUE WORLD ANCHOR
+
+Where the device/browser genuinely supports world tracking:
+
+Attempt to place each LINE signal into the physical environment using:
+
+* Device camera pose
+* World tracking
+* Heading
+* Position
+* Horizontal/ground reference where available
+* Stable world coordinates
+* Distance from user
+* Direction to LINE
+
+The visual LINE should behave as if it exists at a fixed physical location.
+
+When the user:
+
+* walks sideways
+* turns around
+* moves closer
+* moves farther away
+* raises or lowers the phone
+
+the LINE should remain spatially stable rather than simply following the screen.
+
+4. IMPORTANT VISUAL RULE
+
+Do NOT turn LINE into:
+
+* an AR arrow
+* navigation marker
+* waypoint
+* pin
+* floating UI icon
+* Pokémon Go-style object
+* conventional compass marker
+
+The visual metaphor remains:
+
+“Someone left a light there.”
+
+The twin beams should appear to occupy physical space.
+
+They should feel:
+
+* distant
+* luminous
+* atmospheric
+* monumental
+* slightly mysterious
+* physically present
+
+The existing Tribute-in-Light-inspired twin-beam identity must remain intact.
+
+5. ANCHOR BEHAVIOR
+
+Each active LINE should have a stable world representation.
+
+The anchor should not expose the writer’s exact coordinates to the client.
+
+The server continues to determine:
+
+* whether the letter exists
+* whether it is available
+* distance
+* proximity authorization
+* unlock eligibility
+
+The client may receive only the minimum spatial information required to render the experience.
+
+Do NOT weaken the existing privacy model.
+
+6. OCCLUSION / ENVIRONMENTAL INTEGRATION
+
+Where supported by the platform, investigate:
+
+* Ground/environment detection
+* Depth sensing
+* Occlusion
+* Surface awareness
+* Environmental lighting
+
+If technically reliable, allow the beam atmosphere to interact subtly with the environment.
+
+For example:
+
+The lower portion of the light can appear to emerge from behind a street, building, tree line, or physical horizon.
+
+Do NOT add fake occlusion if the device cannot reliably provide it.
+
+Visual credibility is more important than feature count.
+
+7. FALLBACK BEHAVIOR
+
+If world tracking becomes unavailable:
+
+Do not abruptly remove the LINE.
+
+Gracefully transition:
+
+WORLD AR
+→ SENSOR SPATIAL
+→ CAMERA
+→ MAP
+
+The existing Step 15 heading system and Step 16 spatial visualization become the fallback.
+
+Show a subtle status such as:
+
+“Calibrating surroundings…”
+
+or
+
+“Using directional finding…”
+
+Avoid technical terminology such as:
+
+“WebXR unavailable.”
+
+8. MOVEMENT STABILITY
+
+Test specifically for:
+
+* Walking toward LINE
+* Walking away
+* Walking sideways
+* Rotating 90°
+* Rotating 180°
+* Turning through 360°
+* Raising/lowering phone
+* Screen rotation
+* Temporary tracking loss
+* Foreground/background transitions
+
+The beam must not visibly jump, rotate incorrectly, or detach from its apparent physical location.
+
+Use smoothing only where necessary.
+
+Do not introduce excessive latency.
+
+9. MULTIPLE LINES
+
+Maintain the existing hierarchy:
+
+PRIMARY
+SECONDARY
+TERTIARY
+
+If multiple world anchors are supported:
+
+* Primary = strongest spatial presence
+* Secondary = quieter
+* Tertiary = atmospheric/background
+
+Never overload the screen with large objects.
+
+The experience should remain cinematic.
+
+10. PERFORMANCE
+
+Target mobile performance first.
+
+Avoid:
+
+* unnecessary 3D assets
+* large models
+* expensive per-frame calculations
+* excessive particles
+* heavyweight AR frameworks that are not actually required
+
+Maintain the existing 60fps-oriented rendering strategy where hardware permits.
+
+Use GPU-friendly rendering.
+
+11. PRIVACY + SECURITY
+
+This is critical.
+
+Do not expose:
+
+* letter writer identity
+* exact writer location
+* raw private coordinates
+* unnecessary user location history
+
+Do not move proximity authorization from server → client.
+
+A visual anchor must NEVER become an authorization mechanism.
+
+The server remains authoritative.
+
+12. DEVELOPMENT DIAGNOSTICS
+
+Create development-only diagnostics for:
+
+* AR capability
+* tracking state
+* world tracking confidence
+* camera pose
+* heading
+* GPS accuracy
+* location age
+* LINE distance
+* LINE bearing
+* anchor state
+* tracking loss/recovery
+* frame performance
+
+These diagnostics must not appear in production builds.
+
+Reuse existing Step 15 simulation tools.
+
+Do not create persistent test letters.
+
+13. REAL DEVICE VALIDATION
+
+This step cannot be considered fully validated through desktop simulation alone.
+
+Create a validation document covering:
+
+iPhone:
+
+* iOS Safari
+* supported browsers
+* camera permission
+* motion/orientation permission
+* world-tracking capability if available
+
+Android:
+
+* Chrome
+* camera permission
+* motion sensors
+* supported AR/browser capabilities
+
+Test:
+
+1. Find a LINE
+2. Turn around
+3. Walk sideways
+4. Walk toward it
+5. Walk past it
+6. Lose tracking
+7. Regain tracking
+8. Lock/unlock screen
+9. Background/foreground
+10. Rotate device
+11. Approach 10m
+12. Verify server-authoritative unlock
+13. Approach 5m
+14. Verify unauthorized simulation cannot unlock
+
+Document device/browser-specific limitations.
+
+14. ARCHITECTURAL DECISION
+
+At the end of Step 17, explicitly determine:
+
+Can LINE’s current Replit/web architecture provide sufficiently reliable true world-anchored AR?
+
+If YES:
+Implement the supported path.
+
+If PARTIALLY:
+Implement progressive enhancement and retain Steps 15–16 as the primary fallback.
+
+If NO:
+Do NOT fake world anchoring.
+
+Instead, preserve the cinematic sensor-based experience and document what would be required for a future native/hybrid AR layer using platform AR capabilities.
+
+ACCEPTANCE CRITERIA
+
+Step 17 is complete only when:
+
+* Current FIND experience remains intact.
+* Supported devices can use genuine world tracking where technically available.
+* Unsupported devices receive a graceful fallback.
+* LINE remains visually identical in its core identity.
+* Twin beams remain physically convincing.
+* World movement does not cause obvious positional jumping.
+* Server authorization remains unchanged.
+* No private coordinates are unnecessarily exposed.
+* Existing 10m unlock behavior remains authoritative.
+* Performance remains acceptable.
+* Reduced-motion behavior remains intact.
+* Camera/sensor lifecycle remains safe.
+* Production contains no development diagnostics.
+* Typecheck passes.
+* Production build passes.
+* API build passes.
+* Health check passes.
+* Existing FIND simulations still work.
+* Architecture review finds no high/medium severity issues.
+
+IMPORTANT
+
+Do not claim “true AR” merely because the camera, compass, GPS, or WebGL are functioning.
+
+True world anchoring requires the visual object to remain spatially stable relative to the physical environment as the device moves.
+
+If the current web platform cannot reliably provide this, report that honestly and preserve the Step 15/16 experience.
+
+The ultimate LINE experience should feel like:
+
+You are not looking at a marker on your phone.
+
+You are looking for a light that exists somewhere in the world around you.

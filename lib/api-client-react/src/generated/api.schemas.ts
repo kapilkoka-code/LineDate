@@ -88,6 +88,40 @@ export type CreateLetterRequest = LocationRequest & {
   status: CreateLetterRequestStatus;
 };
 
+export type AuthorizeDropRequest = LocationRequest & {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  text: string;
+  /** @minimum 0 */
+  observedAt: number;
+};
+
+export interface DropAuthorization {
+  /**
+     * @minLength 1
+     * @maxLength 2048
+     */
+  dropHandle: string;
+  expiresAt: string;
+}
+
+export type ConfirmDropRequest = LocationRequest & {
+  /**
+     * @minLength 1
+     * @maxLength 2048
+     */
+  dropHandle: string;
+  /** @minimum 0 */
+  observedAt: number;
+};
+
 export type LetterRecordVisibility = typeof LetterRecordVisibility[keyof typeof LetterRecordVisibility];
 
 

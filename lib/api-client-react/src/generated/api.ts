@@ -21,9 +21,11 @@ import type {
 
 import type {
   AuthUserEnvelope,
+  AuthorizeDropRequest,
   BeginBrowserLoginParams,
-  CreateLetterRequest,
+  ConfirmDropRequest,
   CreateReplyRequest,
+  DropAuthorization,
   ErrorEnvelope,
   GetLineLetterParams,
   GetLineSignalFieldParams,
@@ -34,8 +36,6 @@ import type {
   IdentityRelationshipRecord,
   LetterRecord,
   LineProfile,
-  LocalMigrationRequest,
-  LocalMigrationResult,
   LocationRequest,
   LogoutBrowserSessionParams,
   NearbyLetterRecord,
@@ -581,22 +581,22 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getUpdateLineProfileMutationOptions(options));
     }
 
-export const getCreateLineLetterUrl = () => {
+export const getAuthorizeLineDropUrl = () => {
 
 
 
 
-  return `/api/letters`
+  return `/api/letters/drop/authorize`
 }
 
-export const createLineLetter = async (createLetterRequest: CreateLetterRequest, options?: Parameters<typeof customFetch>[1]): Promise<LetterRecord> => {
+export const authorizeLineDrop = async (authorizeDropRequest: AuthorizeDropRequest, options?: Parameters<typeof customFetch>[1]): Promise<DropAuthorization> => {
 
-  return customFetch<LetterRecord>(getCreateLineLetterUrl(),
+  return customFetch<DropAuthorization>(getAuthorizeLineDropUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(createLetterRequest)
+    body: JSON.stringify(authorizeDropRequest)
   }
 );}
 
@@ -604,11 +604,11 @@ export const createLineLetter = async (createLetterRequest: CreateLetterRequest,
 
 
 
-export const getCreateLineLetterMutationOptions = <TError = ErrorType<ErrorEnvelope>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLineLetter>>, TError,{data: BodyType<CreateLetterRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createLineLetter>>, TError,{data: BodyType<CreateLetterRequest>}, TContext> => {
+export const getAuthorizeLineDropMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeLineDrop>>, TError,{data: BodyType<AuthorizeDropRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authorizeLineDrop>>, TError,{data: BodyType<AuthorizeDropRequest>}, TContext> => {
 
-const mutationKey = ['createLineLetter'];
+const mutationKey = ['authorizeLineDrop'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -618,10 +618,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLineLetter>>, {data: BodyType<CreateLetterRequest>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authorizeLineDrop>>, {data: BodyType<AuthorizeDropRequest>}> = (props) => {
           const {data} = props ?? {};
 
-          return  createLineLetter(data,requestOptions)
+          return  authorizeLineDrop(data,requestOptions)
         }
 
 
@@ -631,19 +631,84 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type CreateLineLetterMutationResult = NonNullable<Awaited<ReturnType<typeof createLineLetter>>>
-    export type CreateLineLetterMutationBody = BodyType<CreateLetterRequest>
-    export type CreateLineLetterMutationError = ErrorType<ErrorEnvelope>
+    export type AuthorizeLineDropMutationResult = NonNullable<Awaited<ReturnType<typeof authorizeLineDrop>>>
+    export type AuthorizeLineDropMutationBody = BodyType<AuthorizeDropRequest>
+    export type AuthorizeLineDropMutationError = ErrorType<ErrorEnvelope>
 
-    export const useCreateLineLetter = <TError = ErrorType<ErrorEnvelope>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLineLetter>>, TError,{data: BodyType<CreateLetterRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    export const useAuthorizeLineDrop = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeLineDrop>>, TError,{data: BodyType<AuthorizeDropRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof createLineLetter>>,
+        Awaited<ReturnType<typeof authorizeLineDrop>>,
         TError,
-        {data: BodyType<CreateLetterRequest>},
+        {data: BodyType<AuthorizeDropRequest>},
         TContext
       > => {
-      return useMutation(getCreateLineLetterMutationOptions(options));
+      return useMutation(getAuthorizeLineDropMutationOptions(options));
+    }
+
+export const getConfirmLineDropUrl = () => {
+
+
+
+
+  return `/api/letters/drop/confirm`
+}
+
+export const confirmLineDrop = async (confirmDropRequest: ConfirmDropRequest, options?: Parameters<typeof customFetch>[1]): Promise<LetterRecord> => {
+
+  return customFetch<LetterRecord>(getConfirmLineDropUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(confirmDropRequest)
+  }
+);}
+
+
+
+
+
+export const getConfirmLineDropMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmLineDrop>>, TError,{data: BodyType<ConfirmDropRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmLineDrop>>, TError,{data: BodyType<ConfirmDropRequest>}, TContext> => {
+
+const mutationKey = ['confirmLineDrop'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmLineDrop>>, {data: BodyType<ConfirmDropRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmLineDrop(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmLineDropMutationResult = NonNullable<Awaited<ReturnType<typeof confirmLineDrop>>>
+    export type ConfirmLineDropMutationBody = BodyType<ConfirmDropRequest>
+    export type ConfirmLineDropMutationError = ErrorType<ErrorEnvelope>
+
+    export const useConfirmLineDrop = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmLineDrop>>, TError,{data: BodyType<ConfirmDropRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmLineDrop>>,
+        TError,
+        {data: BodyType<ConfirmDropRequest>},
+        TContext
+      > => {
+      return useMutation(getConfirmLineDropMutationOptions(options));
     }
 
 export const getGetNearbyLineLettersUrl = (params: GetNearbyLineLettersParams,) => {
@@ -1320,70 +1385,5 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getRevealLineIdentityMutationOptions(options));
-    }
-
-export const getMigrateLocalLineDataUrl = () => {
-
-
-
-
-  return `/api/migration/local`
-}
-
-export const migrateLocalLineData = async (localMigrationRequest: LocalMigrationRequest, options?: Parameters<typeof customFetch>[1]): Promise<LocalMigrationResult> => {
-
-  return customFetch<LocalMigrationResult>(getMigrateLocalLineDataUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(localMigrationRequest)
-  }
-);}
-
-
-
-
-
-export const getMigrateLocalLineDataMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof migrateLocalLineData>>, TError,{data: BodyType<LocalMigrationRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof migrateLocalLineData>>, TError,{data: BodyType<LocalMigrationRequest>}, TContext> => {
-
-const mutationKey = ['migrateLocalLineData'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof migrateLocalLineData>>, {data: BodyType<LocalMigrationRequest>}> = (props) => {
-          const {data} = props ?? {};
-
-          return  migrateLocalLineData(data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type MigrateLocalLineDataMutationResult = NonNullable<Awaited<ReturnType<typeof migrateLocalLineData>>>
-    export type MigrateLocalLineDataMutationBody = BodyType<LocalMigrationRequest>
-    export type MigrateLocalLineDataMutationError = ErrorType<unknown>
-
-    export const useMigrateLocalLineData = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof migrateLocalLineData>>, TError,{data: BodyType<LocalMigrationRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof migrateLocalLineData>>,
-        TError,
-        {data: BodyType<LocalMigrationRequest>},
-        TContext
-      > => {
-      return useMutation(getMigrateLocalLineDataMutationOptions(options));
     }
 

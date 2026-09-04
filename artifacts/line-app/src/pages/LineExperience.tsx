@@ -783,40 +783,6 @@ function AppShell() {
     [findGuidanceOrigin, location.location, storedLetters, targetSignalId],
   );
 
-  useEffect(() => {
-    if (!location.location || typeof window === 'undefined') return;
-    const completedKey = 'line:legacy-migration-v2-complete';
-    if (window.localStorage.getItem(completedKey)) return;
-    try {
-      const user = getOrCreateLocalUser();
-      const letters = loadLetters().filter((letter) => letter.isOwn !== false).slice(0, 100);
-      const replies = loadReplies()
-        .filter((reply) => reply.senderUserId === user.id || reply.senderId === user.id)
-        .slice(0, 100);
-      void api.migrate({
-        localUserId: user.id,
-        displayName: user.displayName,
-        location: {
-          latitude: location.location.latitude,
-          longitude: location.location.longitude,
-          accuracy: location.location.accuracy,
-        },
-        letters: letters.map(({ id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status }) => ({
-          id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status,
-        })),
-        replies: replies.map(({ id, letterId, text, createdAt, status }) => ({
-          id, letterId, text, createdAt, status,
-        })),
-      }).then((result) => {
-        if (result.skippedReplies === 0) {
-          window.localStorage.setItem(completedKey, 'true');
-        }
-      }).catch(() => undefined);
-    } catch {
-      // Leave the migration pending; local records are never deleted here.
-    }
-  }, [location.location]);
-
   const closeComposer = useCallback(() => {
     if (!composerOpenRef.current) return;
 

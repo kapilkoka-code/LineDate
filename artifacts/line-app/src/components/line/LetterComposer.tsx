@@ -1,24 +1,15 @@
-import {
-  ArrowLeft,
-  Check,
-  ChevronDown,
-  FilePenLine,
-  LocateFixed,
-  RefreshCw,
-  ShieldCheck,
-  X,
-} from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, FilePenLine, LocateFixed, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { useState } from 'react';
 import type { LocationState } from '@/hooks/useLocation';
-import { api } from '@/services/api';
 import { createLetterId } from '@/services/letters';
+import { DropPlacement } from '@/components/line/DropPlacement';
 
 type LetterComposerProps = {
   location: LocationState;
   onClose: () => void;
 };
 
-type ComposerStage = 'write' | 'preview' | 'complete';
+type ComposerStage = 'write' | 'preview' | 'placement' | 'complete';
 
 function LetterLocation({ location }: { location: LocationState }) {
   const activeLocation = location.status === 'active' ? location.location : null;
@@ -124,13 +115,12 @@ export function LetterComposer({ location, onClose }: LetterComposerProps) {
   const [text, setText] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showEmptyError, setShowEmptyError] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [letterId, setLetterId] = useState(() => createLetterId());
 
   const trimmedText = text.trim();
   const hasLocation = location.status === 'active' && location.location !== null;
   const canPreview = trimmedText.length > 0;
-  const canDrop = canPreview && hasLocation && !saving;
+  const canDrop = canPreview && hasLocation;
 
   const previewLetter = () => {
     if (!canPreview) {
@@ -142,41 +132,34 @@ export function LetterComposer({ location, onClose }: LetterComposerProps) {
     setStage('preview');
   };
 
-  const dropLetter = async () => {
+  const beginPlacement = () => {
     if (!canDrop || !location.location) return;
-
-    setSaving(true);
-    setSaveError(null);
-
-    try {
-      await api.createLetter({
-        id: createLetterId(),
-        text: trimmedText,
-        latitude: location.location.latitude,
-        longitude: location.location.longitude,
-        accuracy: location.location.accuracy,
-        visibility: 'nearby',
-        anonymous: true,
-        status: 'dropped',
-      });
-      setStage('complete');
-    } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'LINE couldn’t leave this letter. Please try again.');
-    } finally {
-      setSaving(false);
-    }
+    setStage('placement');
   };
 
   return (
     <section className="line-letter-composer" data-testid="screen-letter-composer">
-      <header className="line-letter-composer-header">
-        <span className="line-mono">DROP / 001</span>
-        <button type="button" className="line-letter-close" onClick={onClose} aria-label="Close letter composer" data-testid="button-close-letter-composer">
-          <X size={17} strokeWidth={1.4} />
-        </button>
-      </header>
+      {stage !== 'placement' && (
+        <header className="line-letter-composer-header">
+          <span className="line-mono">DROP / 001</span>
+          <button type="button" className="line-letter-close" onClick={onClose} aria-label="Close letter composer" data-testid="button-close-letter-composer">
+            <X size={17} strokeWidth={1.4} />
+          </button>
+        </header>
+      )}
 
-      {stage === 'complete' ? (
+      {stage === 'placement' ? (
+        <DropPlacement
+          letterId={letterId}
+          text={trimmedText}
+          location={location}
+          onSuccess={() => setStage('complete')}
+          onCancel={() => {
+            setLetterId(createLetterId());
+            setStage('preview');
+          }}
+        />
+      ) : stage === 'complete' ? (
         <CompleteState onClose={onClose} />
       ) : (
         <div className="line-letter-composer-content">
@@ -261,16 +244,14 @@ export function LetterComposer({ location, onClose }: LetterComposerProps) {
             <>
               <LetterNote text={text} />
               <LetterLocation location={location} />
-              {saveError && <p className="line-letter-form-error" role="alert">{saveError}</p>}
               {!hasLocation && <p className="line-letter-drop-note">LINE needs an active location before this letter can be left.</p>}
               <div className="line-letter-preview-actions">
                 <button type="button" className="line-letter-back line-mono" onClick={() => setStage('write')} data-testid="button-edit-letter">
                   <ArrowLeft size={15} strokeWidth={1.4} />
                   Edit letter
                 </button>
-                <button type="button" className="line-letter-drop line-mono" onClick={dropLetter} disabled={!canDrop} data-testid="button-drop-letter">
-                  {saving ? 'Leaving…' : 'Drop here'}
-                  <LocateFixed size={15} strokeWidth={1.4} />
+                <button type="button" className="line-letter-drop line-mono" onClick={beginPlacement} disabled={!canDrop} data-testid="button-drop-letter">
+                  DROP THIS LINE
                 </button>
               </div>
             </>

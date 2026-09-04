@@ -1,0 +1,712 @@
+STEP 20 — AR LETTER DROP + PHYSICAL PLACEMENT
+
+Steps 1–19 are complete.
+
+LINE now has a mature spatial discovery foundation:
+
+* Camera-based FIND
+* Calibrated GPS and device heading
+* Cinematic twin-beam LINE visualization
+* Distance/depth-responsive spatial presence
+* World-tracked AR on supported Android/WebXR devices
+* Sensor-spatial fallback on iOS/unsupported browsers
+* Spatial atmospheric audio
+* God’s Eye View
+* Privacy-preserving spatial capabilities
+* Server-authoritative proximity
+* Atomic resolve
+* Fresh-location and plausible-travel checks
+* Separate read/reply authorization
+* Existing anonymous letter/reply/reveal system
+
+Do NOT rebuild these systems.
+
+The missing part of the original LINE concept is the AR Letter Drop experience.
+
+The goal of Step 20 is to allow a user to physically place a LINE into the world using the camera/spatial experience, creating the feeling that they have actually left something behind for another person to discover.
+
+⸻
+
+1. THE CORE EXPERIENCE
+
+The intended experience is:
+
+WRITE
+
+↓
+
+CHOOSE TO DROP
+
+↓
+
+OPEN DROP AR
+
+↓
+
+PHYSICALLY STAND AT THE LOCATION
+
+↓
+
+PLACE THE LINE
+
+↓
+
+CONFIRM DROP
+
+↓
+
+WALK AWAY
+
+The letter then becomes discoverable through the existing FIND experience.
+
+Do NOT simply add a “Drop Letter” button that silently stores the user’s GPS coordinate.
+
+The user should experience the act of leaving the LINE.
+
+⸻
+
+2. DROP ENTRY
+
+After composing a letter and choosing:
+
+DROP THIS LINE
+
+transition into a dedicated camera experience.
+
+Use the existing camera/sensor infrastructure from Steps 14–17.
+
+Do NOT create a second camera system.
+
+Do NOT create a second location system.
+
+Do NOT create a second AR engine.
+
+⸻
+
+3. LOCATION REQUIREMENT
+
+The user must physically be at the intended drop location.
+
+Reuse the existing location validation.
+
+Before allowing placement:
+
+Verify:
+
+* current location available
+* acceptable GPS accuracy
+* sufficiently fresh location
+* user is not in an obviously impossible movement state
+* server accepts the placement attempt
+
+The server remains authoritative.
+
+The client must never be allowed to fabricate a drop location.
+
+⸻
+
+4. AR PLACEMENT
+
+Where world-tracked AR is genuinely supported:
+
+Allow the user to place the LINE spatially into the environment.
+
+The placement should feel like leaving a luminous object behind.
+
+Do NOT use:
+
+* pins
+* arrows
+* waypoints
+* standard AR markers
+* Pokémon Go-style objects
+* floating UI icons
+
+Use the LINE identity:
+
+TWO PARALLEL VERTICAL BEAMS OF LIGHT
+
+The beams should appear to rise from the physical environment.
+
+⸻
+
+5. PLACEMENT VISUALIZATION
+
+During placement:
+
+The LINE should initially appear as a preview.
+
+It can subtly respond to:
+
+* device movement
+* surface position
+* camera pose
+* heading
+* ground/environment detection where supported
+
+The preview should communicate:
+
+“This is where your LINE will live.”
+
+It must be visually obvious that it has NOT been dropped yet.
+
+⸻
+
+6. CONFIRM PLACEMENT
+
+Provide one restrained primary action:
+
+LEAVE IT HERE
+
+Do not use generic:
+
+“Submit”
+
+“Save”
+
+“Create”
+
+“Confirm”
+
+The interaction should feel physical and intentional.
+
+Before confirmation, allow the user to reposition the preview.
+
+⸻
+
+7. PLACEMENT REQUIREMENTS
+
+Where world tracking exists:
+
+Use the strongest available spatial placement information.
+
+Where true world anchoring is unavailable:
+
+Use the existing sensor/GPS spatial model.
+
+Do NOT pretend sensor-based placement is equivalent to persistent world anchoring.
+
+The UI should gracefully adapt to the capability state already established in Step 17.
+
+⸻
+
+8. DROP AUTHORIZATION
+
+When the user presses:
+
+LEAVE IT HERE
+
+the server must validate the placement.
+
+The client should submit only the minimum information required.
+
+The server determines:
+
+* whether the user is authorized
+* whether the location is valid
+* whether the letter is still active
+* whether placement is allowed
+* the authoritative drop location
+* the letter’s active/discoverable state
+
+Do not trust a client-provided coordinate blindly.
+
+⸻
+
+9. DROP CONFIRMATION
+
+After successful server confirmation:
+
+The preview becomes the actual LINE.
+
+Use a subtle animation:
+
+preview light
+
+↓
+
+brief stabilization
+
+↓
+
+twin beams strengthen
+
+↓
+
+atmosphere settles
+
+↓
+
+LINE becomes persistent/discoverable
+
+Do NOT use:
+
+* confetti
+* points
+* achievement banners
+* “LEVEL UP”
+* game rewards
+* loud sounds
+
+The emotional feeling should be:
+
+“It’s there now.”
+
+⸻
+
+10. WALK-AWAY MOMENT
+
+After dropping:
+
+Allow the user to physically move away.
+
+The LINE should remain visually/spatially present while the user is still within the relevant spatial range.
+
+As the user moves away:
+
+* brightness changes
+* atmospheric presence changes
+* distance increases
+* the LINE eventually becomes unavailable to the user’s immediate view
+
+This reinforces that the LINE has been left behind in the world.
+
+⸻
+
+11. DROP → FIND CONTINUITY
+
+The same letter must subsequently be discoverable through the existing FIND system.
+
+The conceptual chain becomes:
+
+WRITER:
+
+DROP
+
+↓
+
+LINE exists spatially
+
+↓
+
+READER:
+
+GOD’S EYE VIEW
+
+↓
+
+FIND THIS LINE
+
+↓
+
+CAMERA FIND
+
+↓
+
+TWIN BEAMS
+
+↓
+
+APPROACH
+
+↓
+
+UNLOCK
+
+↓
+
+LETTER VIEW
+
+This is one continuous product system.
+
+⸻
+
+12. IMPORTANT AR BOUNDARY
+
+AR is responsible for:
+
+* placement
+* spatial presence
+* discovery
+* physical approach
+* object interaction
+
+AR is NOT responsible for:
+
+* letter reading UI
+* reply conversations
+* identity management
+* authorization
+* reveal logic
+
+When the reader successfully finds the LINE and taps/opens it:
+
+transition into the existing normal Letter View.
+
+Do NOT create a separate AR letter reader.
+
+⸻
+
+13. PRIVACY
+
+This is critical.
+
+A dropped LINE must NOT become a public coordinate.
+
+Do not expose:
+
+* writer identity
+* exact writer location history
+* unnecessary raw coordinates
+* placement history
+* movement history
+
+Use the existing privacy-preserving capability architecture from Step 19.
+
+A user discovering a LINE should receive only the information necessary to discover and approach it.
+
+⸻
+
+14. DROP LIFECYCLE
+
+Reuse the existing letter lifecycle.
+
+FREE:
+
+30 days
+
+PREMIUM:
+
+60 days
+
+PERMANENT:
+
+individually purchased permanent letter
+
+Do not create another expiration mechanism.
+
+The server remains the source of truth.
+
+Expired letters must automatically disappear from active spatial discovery.
+
+⸻
+
+15. DROP STATES
+
+Implement clear states:
+
+DRAFT
+
+Letter has not been placed.
+
+PLACEMENT
+
+User is positioning the LINE.
+
+CONFIRMING
+
+Server is validating the placement.
+
+ACTIVE
+
+LINE has been successfully dropped.
+
+EXPIRED
+
+LINE is no longer discoverable.
+
+FAILED
+
+Placement failed.
+
+Each state must have safe recovery.
+
+⸻
+
+16. FAILURE HANDLING
+
+Handle:
+
+* GPS unavailable
+* poor GPS accuracy
+* stale location
+* camera unavailable
+* AR unavailable
+* world tracking loss
+* sensor unavailable
+* network failure
+* server rejection
+* user leaves the placement area
+* app backgrounds during placement
+
+Never silently create a drop.
+
+If placement fails:
+
+Your LINE wasn’t left here.
+
+Allow the user to retry.
+
+⸻
+
+17. WORLD-TRACKING BEHAVIOR
+
+For supported world-tracked AR:
+
+Test:
+
+* placing on ground
+* moving around the object
+* rotating around it
+* walking away
+* approaching again
+* temporarily losing tracking
+* regaining tracking
+
+The visual object should remain spatially stable as far as the platform genuinely supports.
+
+If tracking quality becomes unreliable:
+
+fall back to the existing sensor-spatial representation.
+
+Do not fabricate persistent anchoring.
+
+⸻
+
+18. iOS BEHAVIOR
+
+Do not claim full persistent world anchoring on iOS Safari if the current web stack cannot provide it reliably.
+
+Use the existing Step 15/16 sensor-spatial experience.
+
+The product should still allow the user to create a valid physical drop using the authoritative server location.
+
+The visual experience should communicate the same emotional action without falsely claiming capabilities the platform does not provide.
+
+⸻
+
+19. DROP OBJECT DESIGN
+
+The dropped LINE should NOT look like a physical envelope sitting on the ground.
+
+The core visual remains:
+
+TWO POWERFUL PARALLEL LIGHT BEAMS
+
+The lower origin can have:
+
+* subtle atmospheric glow
+* soft environmental haze
+* restrained light spill
+
+The beams should extend upward into the environment.
+
+At a distance, they should resemble a mysterious signal.
+
+At close range, the user understands:
+
+there is a letter here.
+
+⸻
+
+20. DEVELOPMENT MODE
+
+Create development-only placement simulation.
+
+Test:
+
+* valid placement
+* invalid location
+* poor GPS
+* stale GPS
+* AR supported
+* AR unsupported
+* tracking loss
+* network failure
+* server rejection
+* successful activation
+* expired letter
+
+Do not create persistent fake production letters.
+
+Development diagnostics must not appear in production.
+
+⸻
+
+21. SECURITY REVIEW
+
+Inspect the entire drop flow:
+
+COMPOSE
+
+→ DROP AR
+
+→ PLACE
+
+→ CONFIRM
+
+→ SERVER
+
+→ ACTIVE LETTER
+
+Confirm:
+
+* client cannot arbitrarily move a letter after authorization
+* client cannot forge another user’s drop
+* stale requests cannot activate expired letters
+* duplicate placement cannot create duplicate active letters
+* capabilities cannot be replayed
+* unauthorized users cannot modify placement
+* visualization state cannot authorize access
+* server remains authoritative
+
+⸻
+
+22. REAL DEVICE TESTING
+
+Create:
+
+docs/step-20-real-device-validation.md
+
+Test on:
+
+Android Chrome + supported WebXR/ARCore
+
+* enter AR Drop
+* place LINE
+* move around it
+* confirm placement
+* walk away
+* reopen FIND
+* rediscover the same LINE
+* approach it
+* unlock it
+
+iOS Safari
+
+* camera
+* GPS
+* heading
+* sensor-spatial placement experience
+* confirm drop
+* leave location
+* rediscover through FIND
+
+Also test:
+
+* screen rotation
+* background/foreground
+* tracking loss
+* GPS degradation
+* network interruption
+* duplicate submission
+
+Physical device testing is required before claiming the AR Drop experience is production-validated.
+
+⸻
+
+23. ACCEPTANCE CRITERIA
+
+Step 20 is complete only when:
+
+* A user can write a letter and enter AR Drop.
+* Existing camera/sensor infrastructure is reused.
+* The user must physically be at the intended location.
+* The LINE appears as a twin-beam spatial preview.
+* World-tracked placement works where genuinely supported.
+* Sensor-spatial placement works as the existing fallback.
+* User can reposition before confirmation.
+* “LEAVE IT HERE” creates an intentional placement action.
+* Server authorizes the placement.
+* The dropped LINE becomes active only after successful authorization.
+* The LINE subsequently appears in God’s Eye View where appropriate.
+* The LINE can be handed off into FIND.
+* Another user can physically approach it.
+* Existing server-authoritative 10m unlock remains unchanged.
+* Tapping/opening transitions into the existing Letter View.
+* No AR reading/chat system is created.
+* Letter lifecycle remains unchanged.
+* Privacy architecture remains unchanged.
+* No exact private coordinates are unnecessarily exposed.
+* Duplicate/replayed placement attempts are handled safely.
+* iOS fallback works.
+* Android WebXR path works where supported.
+* Typecheck passes.
+* LINE production build passes.
+* API build passes.
+* Health check passes.
+* Browser console remains clean.
+* Production contains no diagnostics.
+* Architecture review finds no high/medium severity issues.
+
+⸻
+
+THE CORE PRODUCT LOOP
+
+After Step 20, LINE’s original concept should finally exist end-to-end:
+
+WRITER
+
+WRITE
+
+↓
+
+DROP
+
+↓
+
+LEAVE IT HERE
+
+↓
+
+WALK AWAY
+
+DISCOVERER
+
+SEE THE WORLD
+
+↓
+
+FIND THIS LINE
+
+↓
+
+FOLLOW THE LIGHT
+
+↓
+
+APPROACH
+
+↓
+
+FIND THE LETTER
+
+↓
+
+READ
+
+↓
+
+WRITE BACK
+
+RELATIONSHIP
+
+REPLY
+
+↓
+
+CONVERSATION
+
+↓
+
+REVEAL
+
+The fundamental LINE metaphor is:
+
+Someone physically left a thought somewhere in the world.
+
+Another person had to physically find it.
+
+That physical journey is what separates LINE from ordinary dating apps.
+
+Do not lose that principle as the application grows.

@@ -18,6 +18,8 @@ export type SentReply = {
   identityRevealed: boolean; withinRange: boolean; writerLineId: string | null; writerDisplayName: string | null;
 };
 export type LocationPayload = { latitude: number; longitude: number; accuracy: number };
+export type LocationObservation = LocationPayload & { timestamp: number };
+export type DropAuthorization = { dropHandle: string; expiresAt: string };
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -41,11 +43,25 @@ export const api = {
   ) => request<Letter>(
     `/letters/${encodeURIComponent(id)}${query(location)}&accuracy=${encodeURIComponent(location.accuracy)}&observedAt=${encodeURIComponent(location.timestamp)}`,
   ),
-  createLetter: (data: LocationPayload & { id: string; text: string; visibility: 'nearby'; anonymous: true; status: 'dropped' }) => request<Letter>('/letters', { method: 'POST', body: JSON.stringify(data) }),
+  authorizeDrop: (data: LocationObservation & { id: string; text: string }) =>
+    request<DropAuthorization>('/letters/drop/authorize', {
+      method: 'POST',
+      body: JSON.stringify({ ...data, observedAt: data.timestamp }),
+    }),
+  confirmDrop: (dropHandle: string, location: LocationObservation) =>
+    request<Letter>('/letters/drop/confirm', {
+      method: 'POST',
+      body: JSON.stringify({
+        dropHandle,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy,
+        observedAt: location.timestamp,
+      }),
+    }),
   myLetters: () => request<Letter[]>('/letters/mine'),
   repliesForLetter: (id: string, location: Pick<LocationPayload, 'latitude' | 'longitude'>) => request<WriterReply[]>(`/letters/${encodeURIComponent(id)}/replies${query(location)}`),
   createReply: (id: string, data: LocationPayload & { id: string; text: string; status: 'sent' }) => request<SentReply>(`/letters/${encodeURIComponent(id)}/replies`, { method: 'POST', body: JSON.stringify(data) }),
   myReplies: (location?: Pick<LocationPayload, 'latitude' | 'longitude'>) => request<SentReply[]>(`/replies/mine${location ? query(location) : ''}`),
   reveal: (letterId: string, senderUserId: string, location: LocationPayload) => request<{ letterId: string; senderUserId: string; identityRevealed: boolean }>(`/letters/${encodeURIComponent(letterId)}/relationships/${encodeURIComponent(senderUserId)}/reveal`, { method: 'POST', body: JSON.stringify(location) }),
-  migrate: (data: unknown) => request<{ migratedLetters: number; skippedLetters: number; migratedReplies: number; skippedReplies: number; linkedLocalUserId: string }>('/migration/local', { method: 'POST', body: JSON.stringify(data) }),
 };

@@ -23,6 +23,8 @@ export type WorldArEndReason = 'user' | 'tracking-lost' | 'backgrounded' | 'syst
 
 export type WorldArController = {
   end: (reason?: WorldArEndReason) => Promise<void>;
+  reposition?: (headingDegrees: number) => void;
+  setActive?: () => void;
 };
 
 type XRReferenceSpaceLike = object;
@@ -304,7 +306,9 @@ export async function startWorldArSession({
   let endPromise: Promise<void> | null = null;
   let ready = false;
   let endReason: WorldArEndReason = 'system';
+  let activeSignals = signals;
   let referenceSpaceKind: WorldArDiagnostics['referenceSpace'] = 'unavailable';
+  let pendingHeadingDegrees: number | null = null;
   let lastDiagnosticAt = 0;
   let framesInWindow = 0;
   let frameWindowStartedAt = 0;
@@ -357,6 +361,13 @@ export async function startWorldArSession({
 
   const controller: WorldArController = {
     end: (reason = 'user') => requestEnd(reason),
+    reposition: (newHeadingDegrees: number) => {
+      pendingHeadingDegrees = newHeadingDegrees;
+    },
+    setActive: () => {
+      activeSignals = activeSignals.map((signal) => ({ ...signal, isUnlocked: true }));
+      pendingHeadingDegrees = headingDegrees;
+    },
   };
   try {
     onControllerReady(controller);
@@ -425,7 +436,11 @@ export async function startWorldArSession({
 
       trackingLostAt = null;
       trackingState = 'tracking';
-      if (!geometry) {
+      if (!geometry || pendingHeadingDegrees !== null) {
+        if (pendingHeadingDegrees !== null) {
+          headingDegrees = pendingHeadingDegrees;
+          pendingHeadingDegrees = null;
+        }
         const viewerPosition = {
           x: pose.transform.position.x,
           z: pose.transform.position.z,
@@ -434,7 +449,7 @@ export async function startWorldArSession({
           ? 0
           : pose.transform.position.y - 1.5;
         geometry = buildWorldLightGeometry(
-          signals,
+          activeSignals,
           headingDegrees,
           viewerYawDegreesFromOrientation(pose.transform.orientation),
           viewerPosition,

@@ -100,28 +100,63 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorEnvelope" }
-  /letters:
+  /letters/drop/authorize:
     post:
-      operationId: createLineLetter
+      operationId: authorizeLineDrop
       tags: [LINE]
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/CreateLetterRequest" }
+            schema: { $ref: "#/components/schemas/AuthorizeDropRequest" }
       responses:
-        "201":
-          description: Letter dropped
+        "200":
+          description: Short-lived one-time authorization for AR placement
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/LetterRecord" }
+              schema: { $ref: "#/components/schemas/DropAuthorization" }
         "400":
-          description: Invalid letter
+          description: Invalid draft or location observation
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorEnvelope" }
         "401":
           description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "409":
+          description: Letter identifier is already active
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  /letters/drop/confirm:
+    post:
+      operationId: confirmLineDrop
+      tags: [LINE]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConfirmDropRequest" }
+      responses:
+        "201":
+          description: Letter activated at the server-authorized drop location
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LetterRecord" }
+        "400":
+          description: Invalid or stale placement observation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "409":
+          description: Placement was already consumed or the letter already exists
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorEnvelope" }
@@ -340,21 +375,6 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorEnvelope" }
-  /migration/local:
-    post:
-      operationId: migrateLocalLineData
-      tags: [LINE]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/LocalMigrationRequest" }
-      responses:
-        "200":
-          description: Safe local data migration result
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/LocalMigrationResult" }
 components:
   parameters:
     LetterId:
@@ -420,6 +440,29 @@ components:
             visibility: { type: string, enum: [nearby] }
             anonymous: { type: boolean, const: true }
             status: { type: string, enum: [dropped] }
+    AuthorizeDropRequest:
+      allOf:
+        - $ref: "#/components/schemas/LocationRequest"
+        - type: object
+          required: [id, text, observedAt]
+          properties:
+            id: { type: string, minLength: 1, maxLength: 128 }
+            text: { type: string, minLength: 1, maxLength: 500 }
+            observedAt: { type: number, minimum: 0 }
+    DropAuthorization:
+      type: object
+      required: [dropHandle, expiresAt]
+      properties:
+        dropHandle: { type: string, minLength: 1, maxLength: 2048 }
+        expiresAt: { type: string, format: date-time }
+    ConfirmDropRequest:
+      allOf:
+        - $ref: "#/components/schemas/LocationRequest"
+        - type: object
+          required: [dropHandle, observedAt]
+          properties:
+            dropHandle: { type: string, minLength: 1, maxLength: 2048 }
+            observedAt: { type: number, minimum: 0 }
     LetterRecord:
       type: object
       required: [id, text, createdAt, latitude, longitude, accuracy, visibility, anonymous, status, isOwn]

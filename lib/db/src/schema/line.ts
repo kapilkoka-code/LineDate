@@ -94,6 +94,7 @@ export const signalGuardsTable = pgTable(
   {
     digest: varchar("digest", { length: 64 }).primaryKey(),
     count: integer("count").notNull().default(1),
+    capability: text("capability"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

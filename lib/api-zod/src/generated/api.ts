@@ -63,33 +63,66 @@ export const UpdateLineProfileResponse = zod.object({
 })
 
 
-export const createLineLetterBodyOneLatitudeMin = -90;
-export const createLineLetterBodyOneLatitudeMax = 90;
+export const authorizeLineDropBodyOneLatitudeMin = -90;
+export const authorizeLineDropBodyOneLatitudeMax = 90;
 
-export const createLineLetterBodyOneLongitudeMin = -180;
-export const createLineLetterBodyOneLongitudeMax = 180;
+export const authorizeLineDropBodyOneLongitudeMin = -180;
+export const authorizeLineDropBodyOneLongitudeMax = 180;
 
-export const createLineLetterBodyOneAccuracyMin = 0;
+export const authorizeLineDropBodyOneAccuracyMin = 0;
 
-export const createLineLetterBodyTwoIdMax = 128;
+export const authorizeLineDropBodyTwoIdMax = 128;
 
-export const createLineLetterBodyTwoTextMax = 500;
+export const authorizeLineDropBodyTwoTextMax = 500;
+
+export const authorizeLineDropBodyTwoObservedAtMin = 0;
 
 
 
-export const CreateLineLetterBody = zod.object({
-  "latitude": zod.number().min(createLineLetterBodyOneLatitudeMin).max(createLineLetterBodyOneLatitudeMax),
-  "longitude": zod.number().min(createLineLetterBodyOneLongitudeMin).max(createLineLetterBodyOneLongitudeMax),
-  "accuracy": zod.number().min(createLineLetterBodyOneAccuracyMin)
+export const AuthorizeLineDropBody = zod.object({
+  "latitude": zod.number().min(authorizeLineDropBodyOneLatitudeMin).max(authorizeLineDropBodyOneLatitudeMax),
+  "longitude": zod.number().min(authorizeLineDropBodyOneLongitudeMin).max(authorizeLineDropBodyOneLongitudeMax),
+  "accuracy": zod.number().min(authorizeLineDropBodyOneAccuracyMin)
 }).and(zod.object({
-  "id": zod.string().min(1).max(createLineLetterBodyTwoIdMax),
-  "text": zod.string().min(1).max(createLineLetterBodyTwoTextMax),
-  "visibility": zod.enum(['nearby']),
-  "anonymous": zod.literal(true),
-  "status": zod.enum(['dropped'])
+  "id": zod.string().min(1).max(authorizeLineDropBodyTwoIdMax),
+  "text": zod.string().min(1).max(authorizeLineDropBodyTwoTextMax),
+  "observedAt": zod.number().min(authorizeLineDropBodyTwoObservedAtMin)
 }))
 
-export const CreateLineLetterResponse = zod.object({
+export const authorizeLineDropResponseDropHandleMax = 2048;
+
+
+
+export const AuthorizeLineDropResponse = zod.object({
+  "dropHandle": zod.string().min(1).max(authorizeLineDropResponseDropHandleMax),
+  "expiresAt": zod.coerce.date()
+})
+
+
+export const confirmLineDropBodyOneLatitudeMin = -90;
+export const confirmLineDropBodyOneLatitudeMax = 90;
+
+export const confirmLineDropBodyOneLongitudeMin = -180;
+export const confirmLineDropBodyOneLongitudeMax = 180;
+
+export const confirmLineDropBodyOneAccuracyMin = 0;
+
+export const confirmLineDropBodyTwoDropHandleMax = 2048;
+
+export const confirmLineDropBodyTwoObservedAtMin = 0;
+
+
+
+export const ConfirmLineDropBody = zod.object({
+  "latitude": zod.number().min(confirmLineDropBodyOneLatitudeMin).max(confirmLineDropBodyOneLatitudeMax),
+  "longitude": zod.number().min(confirmLineDropBodyOneLongitudeMin).max(confirmLineDropBodyOneLongitudeMax),
+  "accuracy": zod.number().min(confirmLineDropBodyOneAccuracyMin)
+}).and(zod.object({
+  "dropHandle": zod.string().min(1).max(confirmLineDropBodyTwoDropHandleMax),
+  "observedAt": zod.number().min(confirmLineDropBodyTwoObservedAtMin)
+}))
+
+export const ConfirmLineDropResponse = zod.object({
   "id": zod.string(),
   "text": zod.string(),
   "createdAt": zod.coerce.date(),
@@ -405,91 +438,6 @@ export const RevealLineIdentityResponse = zod.object({
   "letterId": zod.string(),
   "senderUserId": zod.string(),
   "identityRevealed": zod.boolean()
-})
-
-
-export const migrateLocalLineDataBodyLocalUserIdMax = 64;
-
-export const migrateLocalLineDataBodyDisplayNameMax = 40;
-
-export const migrateLocalLineDataBodyLocationLatitudeMin = -90;
-export const migrateLocalLineDataBodyLocationLatitudeMax = 90;
-
-export const migrateLocalLineDataBodyLocationLongitudeMin = -180;
-export const migrateLocalLineDataBodyLocationLongitudeMax = 180;
-
-export const migrateLocalLineDataBodyLocationAccuracyMin = 0;
-
-export const migrateLocalLineDataBodyLettersItemOneOneLatitudeMin = -90;
-export const migrateLocalLineDataBodyLettersItemOneOneLatitudeMax = 90;
-
-export const migrateLocalLineDataBodyLettersItemOneOneLongitudeMin = -180;
-export const migrateLocalLineDataBodyLettersItemOneOneLongitudeMax = 180;
-
-export const migrateLocalLineDataBodyLettersItemOneOneAccuracyMin = 0;
-
-export const migrateLocalLineDataBodyLettersItemOneTwoIdMax = 128;
-
-export const migrateLocalLineDataBodyLettersItemOneTwoTextMax = 500;
-
-export const migrateLocalLineDataBodyLettersMax = 100;
-
-export const migrateLocalLineDataBodyRepliesItemIdMax = 128;
-
-export const migrateLocalLineDataBodyRepliesItemLetterIdMax = 128;
-
-export const migrateLocalLineDataBodyRepliesItemTextMax = 500;
-
-export const migrateLocalLineDataBodyRepliesMax = 100;
-
-
-
-export const MigrateLocalLineDataBody = zod.object({
-  "localUserId": zod.string().max(migrateLocalLineDataBodyLocalUserIdMax),
-  "displayName": zod.string().min(1).max(migrateLocalLineDataBodyDisplayNameMax),
-  "location": zod.object({
-  "latitude": zod.number().min(migrateLocalLineDataBodyLocationLatitudeMin).max(migrateLocalLineDataBodyLocationLatitudeMax),
-  "longitude": zod.number().min(migrateLocalLineDataBodyLocationLongitudeMin).max(migrateLocalLineDataBodyLocationLongitudeMax),
-  "accuracy": zod.number().min(migrateLocalLineDataBodyLocationAccuracyMin)
-}),
-  "letters": zod.array(zod.object({
-  "latitude": zod.number().min(migrateLocalLineDataBodyLettersItemOneOneLatitudeMin).max(migrateLocalLineDataBodyLettersItemOneOneLatitudeMax),
-  "longitude": zod.number().min(migrateLocalLineDataBodyLettersItemOneOneLongitudeMin).max(migrateLocalLineDataBodyLettersItemOneOneLongitudeMax),
-  "accuracy": zod.number().min(migrateLocalLineDataBodyLettersItemOneOneAccuracyMin)
-}).and(zod.object({
-  "id": zod.string().min(1).max(migrateLocalLineDataBodyLettersItemOneTwoIdMax),
-  "text": zod.string().min(1).max(migrateLocalLineDataBodyLettersItemOneTwoTextMax),
-  "visibility": zod.enum(['nearby']),
-  "anonymous": zod.literal(true),
-  "status": zod.enum(['dropped'])
-})).and(zod.object({
-  "createdAt": zod.coerce.date()
-}))).max(migrateLocalLineDataBodyLettersMax),
-  "replies": zod.array(zod.object({
-  "id": zod.string().min(1).max(migrateLocalLineDataBodyRepliesItemIdMax),
-  "letterId": zod.string().min(1).max(migrateLocalLineDataBodyRepliesItemLetterIdMax),
-  "text": zod.string().min(1).max(migrateLocalLineDataBodyRepliesItemTextMax),
-  "createdAt": zod.coerce.date(),
-  "status": zod.enum(['sent'])
-})).max(migrateLocalLineDataBodyRepliesMax)
-})
-
-export const migrateLocalLineDataResponseMigratedLettersMin = 0;
-
-export const migrateLocalLineDataResponseSkippedLettersMin = 0;
-
-export const migrateLocalLineDataResponseMigratedRepliesMin = 0;
-
-export const migrateLocalLineDataResponseSkippedRepliesMin = 0;
-
-
-
-export const MigrateLocalLineDataResponse = zod.object({
-  "migratedLetters": zod.int().min(migrateLocalLineDataResponseMigratedLettersMin),
-  "skippedLetters": zod.int().min(migrateLocalLineDataResponseSkippedLettersMin),
-  "migratedReplies": zod.int().min(migrateLocalLineDataResponseMigratedRepliesMin),
-  "skippedReplies": zod.int().min(migrateLocalLineDataResponseSkippedRepliesMin),
-  "linkedLocalUserId": zod.string()
 })
 
 

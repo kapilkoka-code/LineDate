@@ -4223,3 +4223,216 @@ a:focus-visible {
     animation: none;
   }
 }
+
+/* Letter Placement Camera */
+.line-drop-camera-root {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: var(--line-ink);
+  overflow: hidden;
+  touch-action: none;
+}
+
+.line-placement-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(23, 21, 19, 0.85);
+  backdrop-filter: blur(4px);
+  color: var(--line-paper);
+}
+
+.line-placement-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--line-coral);
+}
+
+.line-placement-status p {
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+}
+
+.line-placement-error {
+  padding: 32px;
+  text-align: center;
+}
+
+.line-error-icon {
+  color: var(--line-coral);
+  margin-bottom: 16px;
+}
+
+.line-placement-error h3 {
+  font-size: 2.2rem;
+  margin: 0 0 12px;
+  color: var(--line-paper);
+  font-weight: 400;
+}
+
+.line-placement-error p {
+  font-size: 0.85rem;
+  color: var(--line-ash);
+  margin: 0 0 24px;
+}
+
+.line-placement-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 240px;
+  margin: 0 auto;
+}
+
+.line-placement-ui {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.line-placement-active-ui {
+  justify-content: center;
+}
+
+.line-placement-active-ui button {
+  pointer-events: auto;
+}
+
+.line-placement-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  pointer-events: auto;
+}
+
+.line-placement-header span {
+  font-size: 0.6rem;
+  color: var(--line-coral);
+  letter-spacing: 0.1em;
+}
+
+.line-placement-close {
+  background: rgba(23, 21, 19, 0.4);
+  border: 1px solid rgba(232, 223, 209, 0.15);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--line-paper);
+  backdrop-filter: blur(4px);
+  transition: border-color 0.2s;
+  cursor: pointer;
+}
+
+.line-placement-close:hover {
+  border-color: var(--line-coral);
+}
+
+.line-placement-instruction {
+  text-align: center;
+  margin-top: 10vh;
+}
+
+.line-placement-instruction p {
+  display: inline-block;
+  background: rgba(23, 21, 19, 0.6);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.55rem;
+  color: var(--line-paper);
+  border: 1px solid rgba(232, 223, 209, 0.1);
+  backdrop-filter: blur(4px);
+  letter-spacing: 0.1em;
+}
+
+.line-placement-footer {
+  padding: 32px 24px;
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+  background: linear-gradient(to top, rgba(23, 21, 19, 0.9) 0%, transparent 100%);
+}
+
+.line-leave-btn {
+  width: 100%;
+  max-width: 300px;
+  padding: 16px;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.line-placement-success {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.line-placement-success-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+.line-success-icon {
+  color: var(--line-coral);
+}
+
+.line-placement-success-content h2 {
+  font-size: 2.8rem;
+  color: var(--line-paper);
+  margin: 0;
+  font-weight: 400;
+}
+
+.line-placement-diagnostics {
+  position: absolute;
+  top: 80px;
+  left: 20px;
+  z-index: 999;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 12px;
+  border: 1px solid var(--line-coral);
+  color: #fff;
+  font-size: 10px;
+  font-family: monospace;
+  pointer-events: auto;
+}
+
+.line-diag-title {
+  color: var(--line-coral);
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+
+.line-diag-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.line-diag-actions button {
+  background: #333;
+  border: 1px solid #555;
+  padding: 4px;
+  color: white;
+  cursor: pointer;
+}

@@ -1,6 +1,8 @@
 import {
-  CreateLineLetterBody,
-  CreateLineLetterResponse,
+  AuthorizeLineDropBody,
+  AuthorizeLineDropResponse,
+  ConfirmLineDropBody,
+  ConfirmLineDropResponse,
   CreateLineReplyBody,
   CreateLineReplyParams,
   CreateLineReplyResponse,
@@ -20,8 +22,6 @@ import {
   GetRepliesForLetterParams,
   GetRepliesForLetterQueryParams,
   GetRepliesForLetterResponse,
-  MigrateLocalLineDataBody,
-  MigrateLocalLineDataResponse,
   RevealLineIdentityBody,
   RevealLineIdentityParams,
   RevealLineIdentityResponse,
@@ -58,6 +58,10 @@ const SIGNAL_FIELD_CELL_METERS = 25;
 const SIGNAL_FIELD_RADIUS_METERS = 82;
 const SIGNAL_FIELD_LIMIT = 18;
 const SIGNAL_HANDLE_TTL_MS = 10 * 60_000;
+const DROP_HANDLE_TTL_MS = 5 * 60_000;
+const DROP_MAX_ACCURACY_METERS = 25;
+const DROP_MAX_OBSERVATION_AGE_MS = 15_000;
+const DROP_MAX_TRAVEL_SPEED_MPS = 3;
 const SIGNAL_FIELD_RATE_LIMIT = 30;
 const router: IRouter = Router();
 
@@ -72,6 +76,18 @@ type SignalCapability = {
   guidanceBearing: number | null;
   originLatitude: number | null;
   originLongitude: number | null;
+};
+
+type DropCapability = {
+  version: 1;
+  userId: string;
+  letterId: string;
+  text: string;
+  originLatitude: number;
+  originLongitude: number;
+  originAccuracy: number;
+  issuedAt: number;
+  expiresAt: number;
 };
 
 let signalCapabilityKey: Buffer | null = null;
@@ -241,6 +257,207 @@ function readSignalHandle(handle: string, userId: string) {
   } catch {
     return null;
   }
+}
+
+function dropHandle(
+  userId: string,
+  letterId: string,
+  text: string,
+  origin: { latitude: number; longitude: number; accuracy: number },
+) {
+  const issuedAt = Date.now();
+  const capability: DropCapability = {
+    version: 1,
+    userId,
+    letterId,
+    text,
+    originLatitude: origin.latitude,
+    originLongitude: origin.longitude,
+    originAccuracy: origin.accuracy,
+    issuedAt,
+    expiresAt: issuedAt + DROP_HANDLE_TTL_MS,
+  };
+  const initializationVector = randomBytes(12);
+  const cipher = createCipheriv(
+    "aes-256-gcm",
+    getSignalCapabilityKey(),
+    initializationVector,
+  );
+  const encrypted = Buffer.concat([
+    cipher.update(JSON.stringify(capability), "utf8"),
+    cipher.final(),
+  ]);
+  return [
+    "drop1",
+    initializationVector.toString("base64url"),
+    encrypted.toString("base64url"),
+    cipher.getAuthTag().toString("base64url"),
+  ].join(".");
+}
+
+function readDropHandle(handle: string, userId: string) {
+  try {
+    const [prefix, encodedVector, encodedPayload, encodedTag, ...remainder] =
+      handle.split(".");
+    if (
+      prefix !== "drop1"
+      || !encodedVector
+      || !encodedPayload
+      || !encodedTag
+      || remainder.length
+    ) return null;
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      getSignalCapabilityKey(),
+      Buffer.from(encodedVector, "base64url"),
+    );
+    decipher.setAuthTag(Buffer.from(encodedTag, "base64url"));
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(encodedPayload, "base64url")),
+      decipher.final(),
+    ]).toString("utf8");
+    const capability = JSON.parse(decrypted) as Partial<DropCapability>;
+    if (
+      capability.version !== 1
+      || capability.userId !== userId
+      || typeof capability.letterId !== "string"
+      || capability.letterId.length === 0
+      || capability.letterId.length > 128
+      || typeof capability.text !== "string"
+      || capability.text.length === 0
+      || capability.text.length > 500
+      || typeof capability.originLatitude !== "number"
+      || typeof capability.originLongitude !== "number"
+      || typeof capability.originAccuracy !== "number"
+      || typeof capability.issuedAt !== "number"
+      || typeof capability.expiresAt !== "number"
+      || capability.expiresAt <= Date.now()
+    ) return null;
+    return capability as DropCapability;
+  } catch {
+    return null;
+  }
+}
+
+function validDropObservation(observation: {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  observedAt: number;
+}) {
+  return observation.accuracy <= DROP_MAX_ACCURACY_METERS
+    && Math.abs(Date.now() - observation.observedAt) <= DROP_MAX_OBSERVATION_AGE_MS;
+}
+
+async function authorizeDropCapability(
+  userId: string,
+  letterId: string,
+  text: string,
+  origin: { latitude: number; longitude: number; accuracy: number },
+) {
+  const digest = signalGuardDigest("drop-letter", letterId);
+  return db.transaction(async (transaction) => {
+    await transaction.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${digest}, 0::bigint))`,
+    );
+    const [existingLetter] = await transaction
+      .select({ writerId: lettersTable.writerId })
+      .from(lettersTable)
+      .where(eq(lettersTable.id, letterId));
+    if (existingLetter) return null;
+    const [guard] = await transaction
+      .select()
+      .from(signalGuardsTable)
+      .where(eq(signalGuardsTable.digest, digest));
+    const now = new Date();
+    if (guard?.capability && guard.expiresAt > now) {
+      const existingCapability = readDropHandle(guard.capability, userId);
+      if (
+        existingCapability
+        && existingCapability.letterId === letterId
+        && existingCapability.text === text
+      ) {
+        return {
+          handle: guard.capability,
+          expiresAt: new Date(existingCapability.expiresAt),
+        };
+      }
+      return null;
+    }
+    const handle = dropHandle(userId, letterId, text, origin);
+    const capability = readDropHandle(handle, userId);
+    if (!capability) return null;
+    const expiresAt = new Date(capability.expiresAt);
+    if (guard) {
+      await transaction
+        .update(signalGuardsTable)
+        .set({ count: 1, capability: handle, expiresAt, updatedAt: now })
+        .where(eq(signalGuardsTable.digest, digest));
+    } else {
+      await transaction.insert(signalGuardsTable).values({
+        digest,
+        count: 1,
+        capability: handle,
+        expiresAt,
+      });
+    }
+    return { handle, expiresAt };
+  });
+}
+
+async function activateDrop(
+  userId: string,
+  handle: string,
+  capability: DropCapability,
+  observation: { latitude: number; longitude: number; accuracy: number },
+) {
+  const digest = signalGuardDigest("drop-letter", capability.letterId);
+  return db.transaction(async (transaction) => {
+    await transaction.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${digest}, 0::bigint))`,
+    );
+    if (capability.expiresAt <= Date.now()) return null;
+    const [existingLetter] = await transaction
+      .select()
+      .from(lettersTable)
+      .where(eq(lettersTable.id, capability.letterId));
+    if (existingLetter) {
+      return existingLetter.writerId === userId ? existingLetter : null;
+    }
+    const [guard] = await transaction
+      .select()
+      .from(signalGuardsTable)
+      .where(eq(signalGuardsTable.digest, digest));
+    const now = new Date();
+    if (
+      !guard
+      || guard.capability !== handle
+      || guard.expiresAt <= now
+    ) return null;
+    const [letter] = await transaction
+      .insert(lettersTable)
+      .values({
+        id: capability.letterId,
+        writerId: userId,
+        text: capability.text,
+        latitude: observation.latitude,
+        longitude: observation.longitude,
+        accuracy: observation.accuracy,
+        visibility: "nearby",
+        anonymous: true,
+        status: "dropped",
+        lifecycleKind: "free",
+        expiresAt: new Date(now.getTime() + 30 * 86_400_000),
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (letter) return letter;
+    const [conflictingLetter] = await transaction
+      .select()
+      .from(lettersTable)
+      .where(eq(lettersTable.id, capability.letterId));
+    return conflictingLetter?.writerId === userId ? conflictingLetter : null;
+  });
 }
 
 async function signalFieldRateLimited(req: Request, userId: string) {
@@ -481,26 +698,58 @@ router.patch("/profile", async (req, res) => {
   );
 });
 
-router.post("/letters", async (req, res) => {
+router.post("/letters/drop/authorize", async (req, res) => {
   const userId = requireUser(req, res);
   if (!userId) return;
-  const parsed = CreateLineLetterBody.safeParse(req.body);
+  const parsed = AuthorizeLineDropBody.safeParse(req.body);
   if (!parsed.success) return invalid(res, "Letter text and location are required");
   const text = parsed.data.text.trim();
   if (!text) return invalid(res, "Letter cannot be blank");
-  const [letter] = await db
-    .insert(lettersTable)
-    .values({
-      ...parsed.data,
-      text,
-      writerId: userId,
-      lifecycleKind: "free",
-      expiresAt: new Date(Date.now() + 30 * 86_400_000),
-    })
-    .onConflictDoNothing()
-    .returning();
-  if (!letter) return res.status(409).json({ error: "A letter with this ID already exists" });
-  res.status(201).json(CreateLineLetterResponse.parse(letterResponse(letter, true)));
+  if (!validDropObservation(parsed.data)) {
+    return invalid(res, "Use a fresh location with accuracy of 25m or better");
+  }
+  const authorization = await authorizeDropCapability(
+    userId,
+    parsed.data.id,
+    text,
+    parsed.data,
+  );
+  if (!authorization) return res.status(409).json({ error: "This letter is already being placed" });
+  res.json(AuthorizeLineDropResponse.parse({
+    dropHandle: authorization.handle,
+    expiresAt: authorization.expiresAt,
+  }));
+});
+
+router.post("/letters/drop/confirm", async (req, res) => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const parsed = ConfirmLineDropBody.safeParse(req.body);
+  if (!parsed.success || !validDropObservation(parsed.data)) {
+    return invalid(res, "Use a fresh location with accuracy of 25m or better");
+  }
+  const capability = readDropHandle(parsed.data.dropHandle, userId);
+  if (!capability) {
+    return res.status(409).json({ error: "This placement has expired. Start the drop again." });
+  }
+  const elapsedSeconds = Math.max(0, (Date.now() - capability.issuedAt) / 1_000);
+  const travelAllowance =
+    Math.max(8, elapsedSeconds * DROP_MAX_TRAVEL_SPEED_MPS)
+    + capability.originAccuracy
+    + parsed.data.accuracy;
+  if (
+    distanceMeters(
+      capability.originLatitude,
+      capability.originLongitude,
+      parsed.data.latitude,
+      parsed.data.longitude,
+    ) > travelAllowance
+  ) {
+    return invalid(res, "Your location changed too quickly. Start the drop again.");
+  }
+  const letter = await activateDrop(userId, parsed.data.dropHandle, capability, parsed.data);
+  if (!letter) return res.status(409).json({ error: "This placement was already used" });
+  res.status(201).json(ConfirmLineDropResponse.parse(letterResponse(letter, true)));
 });
 
 router.get("/letters/nearby", async (req, res) => {
@@ -996,83 +1245,6 @@ router.post("/letters/:letterId/relationships/:senderUserId/reveal", async (req,
       letterId: relationship.letterId,
       senderUserId: sender.lineId,
       identityRevealed: relationship.identityRevealed,
-    }),
-  );
-});
-
-router.post("/migration/local", async (req, res) => {
-  const userId = requireUser(req, res);
-  if (!userId) return;
-  const body = MigrateLocalLineDataBody.safeParse(req.body);
-  if (!body.success) return invalid(res, "Legacy data is invalid");
-  const displayName = body.data.displayName.trim();
-  if (displayName) {
-    await db
-      .update(usersTable)
-      .set({ displayName, updatedAt: new Date() })
-      .where(and(eq(usersTable.id, userId), eq(usersTable.displayName, "Anonymous User")));
-  }
-  let migratedLetters = 0;
-  for (const source of body.data.letters) {
-    const [inserted] = await db
-      .insert(lettersTable)
-      .values({
-        ...source,
-        writerId: userId,
-        text: source.text.trim(),
-        createdAt: source.createdAt,
-        lifecycleKind: "free",
-        expiresAt: new Date(source.createdAt.getTime() + 30 * 86_400_000),
-      })
-      .onConflictDoNothing()
-      .returning({ id: lettersTable.id });
-    if (inserted) migratedLetters += 1;
-  }
-  let migratedReplies = 0;
-  for (const source of body.data.replies) {
-    const [letter] = await db
-      .select()
-      .from(lettersTable)
-      .where(eq(lettersTable.id, source.letterId));
-    if (
-      !letter ||
-      letter.writerId === userId ||
-      distanceMeters(
-        body.data.location.latitude,
-        body.data.location.longitude,
-        letter.latitude,
-        letter.longitude,
-      ) > UNLOCK_DISTANCE_METERS
-    ) {
-      continue;
-    }
-    const [inserted] = await db
-      .insert(repliesTable)
-      .values({
-        id: source.id,
-        letterId: letter.id,
-        senderUserId: userId,
-        letterWriterId: letter.writerId,
-        text: source.text.trim(),
-        createdAt: source.createdAt,
-        status: "sent",
-      })
-      .onConflictDoNothing()
-      .returning({ id: repliesTable.id });
-    if (!inserted) continue;
-    migratedReplies += 1;
-    await db
-      .insert(identityRelationshipsTable)
-      .values({ letterId: letter.id, senderUserId: userId })
-      .onConflictDoNothing();
-  }
-  res.json(
-    MigrateLocalLineDataResponse.parse({
-      migratedLetters,
-      skippedLetters: body.data.letters.length - migratedLetters,
-      migratedReplies,
-      skippedReplies: body.data.replies.length - migratedReplies,
-      linkedLocalUserId: body.data.localUserId,
     }),
   );
 });

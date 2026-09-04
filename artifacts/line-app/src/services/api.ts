@@ -7,7 +7,7 @@ export type Letter = {
 export type NearbyLetterRecord = {
   id: string; text: string | null; createdAt: string; visibility: 'nearby';
   anonymous: true; status: 'dropped'; isOwn: false; isUnlocked: boolean;
-  distanceMeters: number;
+  distanceMeters: number; bearingDegrees: number;
 };
 export type WriterReply = {
   id: string; letterId: string; text: string; createdAt: string; status: 'sent';

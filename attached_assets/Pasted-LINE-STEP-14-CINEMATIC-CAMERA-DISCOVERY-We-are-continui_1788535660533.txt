@@ -1,0 +1,384 @@
+LINE — STEP 14: CINEMATIC CAMERA DISCOVERY
+
+We are continuing the existing LINE dating app.
+
+Do NOT rebuild or replace existing systems. First inspect the repository and reuse the current authentication, database, location, nearby-letter API, replies, reveals, expiration, and UI architecture.
+
+GOAL
+
+Build LINE’s signature FIND experience.
+
+The user opens FIND and uses their phone camera to discover nearby anonymous letters in the real world.
+
+The key visual is not a map pin, arrow, route, or conventional AR marker.
+
+It should feel like a hidden human connection appearing in the physical world.
+
+THE LINE
+
+Represent a nearby letter using two powerful parallel beams of light rising vertically into the environment, inspired by the Tribute in Light aesthetic.
+
+The beams should be:
+
+* cinematic
+* atmospheric
+* luminous
+* minimal
+* mysterious
+* physically present-looking
+
+Use WebGL/Three.js if the project already supports it; otherwise use Canvas/CSS gradients. Avoid unnecessary dependencies.
+
+⸻
+
+1. FIND SCREEN
+
+Add/use the existing primary navigation:
+
+HOME | FIND | MY LETTERS | PROFILE
+
+FIND opens a full-screen mobile camera experience.
+
+Camera feed should occupy the background.
+
+Keep UI extremely minimal.
+
+First use:
+
+“Somewhere around you, someone left a Line.”
+
+Then:
+
+“Look around.”
+
+Button:
+
+START FINDING
+
+Request camera and location permissions.
+
+If camera permission fails, provide a graceful fallback and allow the existing MAP discovery experience.
+
+⸻
+
+2. USE EXISTING LOCATION SYSTEM
+
+Reuse the application’s existing location architecture.
+
+Do not create a second location system.
+
+The client should receive only privacy-safe information such as:
+
+letterId
+distanceMeters
+bearing
+isUnlocked
+
+Do not expose another user’s exact coordinates or identity unnecessarily.
+
+The server remains authoritative for proximity and unlocking.
+
+⸻
+
+3. DISCOVERY STATES
+
+Implement these states:
+
+NOTHING NEARBY
+
+Camera remains active.
+
+“Nothing nearby.”
+
+DETECTED
+
+A very faint distant beam appears.
+
+“Something is nearby.”
+“37 m away”
+
+APPROACHING
+
+As the user gets closer, the beam becomes brighter and more defined.
+
+Example:
+
+“18 m”
+“You’re getting closer.”
+
+NEAR
+
+At approximately the existing unlock boundary, the beam becomes strong.
+
+UNLOCKED
+
+Trigger a cinematic pulse:
+
+1. Beam intensifies.
+2. Glow expands.
+3. Subtle haptic feedback.
+4. Display:
+
+YOU FOUND A LINE
+
+Then:
+
+OPEN LETTER
+
+Tapping it opens the existing letter-reading experience.
+
+⸻
+
+4. CINEMATIC LINE COMPONENT
+
+Create a reusable component such as:
+
+<CinematicLine />
+
+It should support:
+
+letterId
+distanceMeters
+bearing
+isUnlocked
+intensity
+opacity
+scale
+
+Visually create the LINE from several layers:
+
+* large atmospheric glow
+* soft beam
+* bright central core
+* secondary glow
+* subtle particles/noise
+
+The two beams must remain visibly separate.
+
+Avoid hard edges, rectangles, arrows, pins, brackets, or gaming-style markers.
+
+⸻
+
+5. DISTANCE BEHAVIOUR
+
+Conceptually:
+
+100m+   → invisible / extremely faint
+50m     → barely visible
+30m     → faint
+20m     → clear
+15m     → strong
+10m     → very strong
+UNLOCK  → cinematic pulse
+
+Use the application’s actual server-side unlock threshold.
+
+Never allow frontend distance to authorize access.
+
+⸻
+
+6. DEVICE ORIENTATION
+
+Where supported, use device orientation/motion APIs.
+
+The LINE should move according to the user’s viewing direction:
+
+* looking away → LINE moves toward edge/disappears
+* turning toward it → LINE approaches center
+* looking directly at it → LINE is centered
+
+Calculate directional bearing using the existing privacy-safe architecture.
+
+If orientation is unavailable, provide a touch/drag fallback.
+
+⸻
+
+7. MULTIPLE LINES
+
+Support multiple nearby letters.
+
+Do not show a forest of beams.
+
+Maximum prominent beams: 3
+
+Prioritize:
+
+1. unlocked/closest
+2. approaching
+3. strongest nearby signal
+
+Secondary beams should be significantly fainter.
+
+⸻
+
+8. UNLOCK TRANSITION
+
+When the server confirms access:
+
+Create a premium transition:
+
+beam → bloom → pulse → “YOU FOUND A LINE” → OPEN LETTER
+
+When OPEN LETTER is tapped, transition from the camera into the existing letter reader.
+
+The light itself should feel like the bridge between the physical world and the letter.
+
+⸻
+
+9. HAPTICS + SOUND
+
+Use subtle haptics where supported:
+
+* distant → none
+* approaching → very subtle
+* close → slightly stronger
+* unlock → short confirmation
+
+Prepare a simple sound abstraction for future spatial audio, but do not require audio.
+
+Respect browser autoplay restrictions.
+
+⸻
+
+10. PERFORMANCE
+
+Target smooth mobile performance.
+
+Separate:
+
+location updates
+from
+visual rendering
+
+Use:
+
+* requestAnimationFrame
+* throttled location/API updates
+* GPU-friendly transforms
+* memoization where appropriate
+
+Do not perform backend requests every animation frame.
+
+Optimize for:
+
+* iPhone Safari
+* iOS Chrome
+* Android Chrome
+* iPad
+
+Respect safe-area insets.
+
+⸻
+
+11. FALLBACKS
+
+Handle gracefully:
+
+* camera denied
+* location denied
+* orientation unavailable
+* WebGL unavailable
+* network failure
+* expired/deleted letter
+* letter no longer accessible
+
+Fallback hierarchy:
+
+Camera + orientation → full FIND
+
+Camera without orientation → touch directional FIND
+
+No camera → cinematic fallback / existing MAP discovery
+
+⸻
+
+12. ACCESSIBILITY
+
+Support:
+
+prefers-reduced-motion
+
+When enabled:
+
+* reduce beam movement
+* reduce bloom/pulsing
+* reduce particles
+
+Provide accessible descriptions such as:
+
+“Anonymous letter approximately 12 meters away.”
+
+The experience should not rely exclusively on visual movement.
+
+⸻
+
+13. DEVELOPMENT TEST MODE
+
+Create a development-only test mode.
+
+Allow simulation of:
+
+distance: 100m / 50m / 20m / 10m / 5m
+bearing: 0° / 90° / 180° / 270°
+
+This is only for development/testing.
+
+It must never bypass production server-side authorization.
+
+⸻
+
+14. DO NOT BREAK EXISTING FEATURES
+
+After implementation verify:
+
+* authentication
+* letter creation
+* nearby discovery
+* proximity enforcement
+* replies
+* reply inbox
+* reveal system
+* My Letters
+* expiration
+* premium/permanent letters
+* existing APIs
+
+all continue working.
+
+Do not create duplicate authentication, location, database, or letter systems.
+
+⸻
+
+ACCEPTANCE CRITERIA
+
+Step 14 is complete when:
+
+[ ] FIND screen works
+[ ] Camera permission flow works
+[ ] Existing location system is reused
+[ ] Nearby letters appear as cinematic LINE beams
+[ ] Two parallel beams are clearly visible
+[ ] Beam intensity responds to distance
+[ ] Direction responds to device orientation where supported
+[ ] Multiple nearby letters work
+[ ] Server-side unlocking remains authoritative
+[ ] Unlock animation works
+[ ] Existing letter reader opens correctly
+[ ] Haptics work where supported
+[ ] Fallbacks work
+[ ] Reduced-motion support works
+[ ] Development test mode works
+[ ] Mobile performance is smooth
+[ ] Existing features remain intact
+
+MOST IMPORTANT DESIGN PRINCIPLE
+
+LINE should not feel like another dating app with AR added to it.
+
+It should feel like:
+
+“Someone left something for me somewhere around here.”
+
+The light is the connection.
+The search is the experience.
+The letter is the reward.

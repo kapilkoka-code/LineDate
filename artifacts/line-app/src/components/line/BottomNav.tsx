@@ -36,10 +36,10 @@ function NavItem({ view, label, activeView, onChange, icon }: NavItemProps) {
 export function BottomNav({ activeView, onChange }: BottomNavProps) {
   return (
     <nav className="line-bottom-nav" aria-label="Primary navigation" data-testid="navigation-primary">
-      <NavItem view="discover" label="Discover" activeView={activeView} onChange={onChange} icon={<Compass size={17} strokeWidth={1.5} />} />
-      <NavItem view="camera" label="Camera" activeView={activeView} onChange={onChange} icon={<Aperture size={17} strokeWidth={1.5} />} />
-      <NavItem view="redline" label="Redline" activeView={activeView} onChange={onChange} icon={<span className="line-nav-redline-icon" />} />
-      <NavItem view="profile" label="Profile" activeView={activeView} onChange={onChange} icon={<UserRound size={17} strokeWidth={1.5} />} />
+      <NavItem view="discover" label="HOME" activeView={activeView} onChange={onChange} icon={<Compass size={17} strokeWidth={1.5} />} />
+      <NavItem view="camera" label="FIND" activeView={activeView} onChange={onChange} icon={<Aperture size={17} strokeWidth={1.5} />} />
+      <NavItem view="redline" label="MY LETTERS" activeView={activeView} onChange={onChange} icon={<span className="line-nav-redline-icon" />} />
+      <NavItem view="profile" label="PROFILE" activeView={activeView} onChange={onChange} icon={<UserRound size={17} strokeWidth={1.5} />} />
     </nav>
   );
 }

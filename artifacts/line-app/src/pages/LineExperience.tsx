@@ -5,6 +5,7 @@ import { BottomNav, type AppView } from '@/components/line/BottomNav';
 import { DiscoveryField } from '@/components/line/DiscoveryField';
 import { LineMark } from '@/components/line/LineMark';
 import { LetterComposer } from '@/components/line/LetterComposer';
+import { CameraView } from '@/components/line/CameraView';
 import { LocationHeaderStatus, LocationPanel } from '@/components/line/LocationPanel';
 import { useLocation, type LocationState } from '@/hooks/useLocation';
 import {
@@ -59,33 +60,9 @@ function OpeningScreen({ onSignIn }: { onSignIn: () => void }) {
   );
 }
 
-function DiscoverView({ location, onDropLetter }: { location: LocationState; onDropLetter: () => void }) {
+function DiscoverView({ location, onDropLetter, storedLetters, nearbyLoading }: { location: LocationState; onDropLetter: () => void; storedLetters: import('@/services/api').NearbyLetterRecord[]; nearbyLoading: boolean }) {
   const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
   const [mapUnavailable, setMapUnavailable] = useState(false);
-  const [storedLetters, setStoredLetters] = useState<import('@/services/api').NearbyLetterRecord[]>([]);
-  const [nearbyLoading, setNearbyLoading] = useState(false);
-
-  useEffect(() => {
-    if (!location.location) {
-      setStoredLetters([]);
-      return;
-    }
-    let cancelled = false;
-    setNearbyLoading(true);
-    void api.nearby(location.location)
-      .then((letters) => {
-        if (!cancelled) setStoredLetters(letters);
-      })
-      .catch(() => {
-        if (!cancelled) setStoredLetters([]);
-      })
-      .finally(() => {
-        if (!cancelled) setNearbyLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [location.location]);
 
   const nearbyLetters = useMemo(
     () => getNearbyLetters(location.location, storedLetters),
@@ -159,64 +136,93 @@ function DiscoverView({ location, onDropLetter }: { location: LocationState; onD
   );
 }
 
-function CameraView() {
-  const [held, setHeld] = useState(false);
+function MyLettersView({ location }: { location: LocationState }) {
+  const [localUser, setLocalUser] = useState<LocalUser | null>(null);
+  const [showMyLetters, setShowMyLetters] = useState(true);
+  const [letters, setLetters] = useState<Letter[]>([]);
+  const [replies, setReplies] = useState<LetterReply[]>([]);
+  const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api.profile().then(setLocalUser).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!localUser) return;
+    if (showMyLetters) {
+      void api.myLetters().then((records) => setLetters(records.map((letter) => ({
+        ...letter, text: letter.text ?? '', writerId: localUser.id, writerDisplayName: localUser.displayName,
+      })))).catch(() => setLetters([]));
+    } else {
+      void api.myReplies(location.location ?? undefined).then((records) => setReplies(records.map((reply) => ({
+        ...reply, senderId: '', senderDisplayName: '', senderUserId: localUser.id,
+        letterWriterId: reply.writerLineId ?? '', letterWriterDisplayName: reply.writerDisplayName ?? 'Anonymous User',
+        withinRange: reply.withinRange,
+      })))).catch(() => setReplies([]));
+    }
+  }, [showMyLetters, location.location, localUser]);
+
+  const ownedLetters = letters;
+  const selectedLetter = ownedLetters.find((letter) => letter.id === selectedLetterId) ?? null;
+  const selectedLetterReplies = selectedLetter
+    ? replies.filter((reply) => reply.letterId === selectedLetter.id)
+    : [];
+  const selectedLetterIsWithinRange = selectedLetter
+    ? isLetterWithinUnlockRange(location.location, selectedLetter)
+    : false;
+
+  useEffect(() => {
+    if (!selectedLetter || !location.location || !localUser) return;
+    void api.repliesForLetter(selectedLetter.id, location.location).then((records) => {
+      setReplies((current) => [
+        ...current.filter((reply) => reply.letterId !== selectedLetter.id),
+        ...records.map((reply) => ({
+          ...reply, senderId: reply.senderLineId, senderUserId: reply.senderUserId,
+          letterWriterId: localUser.id, letterWriterDisplayName: localUser.displayName,
+        })),
+      ]);
+    }).catch(() => undefined);
+  }, [selectedLetter?.id, location.location, localUser]);
 
   return (
-    <div className="line-view line-camera-view">
+    <div className="line-view line-my-letters-screen">
       <header className="line-app-header">
         <LineMark compact />
-        <span className="line-header-index line-mono">02 / FIELD LENS</span>
+        <span className="line-header-index line-mono">03 / YOUR SIGNALS</span>
       </header>
-      <div className="line-camera-copy">
-        <span className="line-section-index line-mono">CAMERA / VISUAL PROTOTYPE</span>
-        <h1 className="line-camera-title line-serif">THE WORLD IS<br /><em>FULL OF LETTERS.</em></h1>
-        <p>AR discovery will appear here.</p>
-      </div>
-      <div className={`line-camera-stage ${held ? 'line-camera-stage-held' : ''}`}>
-        <span className="line-camera-corner line-camera-corner-tl" aria-hidden="true" />
-        <span className="line-camera-corner line-camera-corner-tr" aria-hidden="true" />
-        <span className="line-camera-corner line-camera-corner-bl" aria-hidden="true" />
-        <span className="line-camera-corner line-camera-corner-br" aria-hidden="true" />
-        <span className="line-camera-crosshair" aria-hidden="true" />
-        <button
-          type="button"
-          className="line-camera-button"
-          onClick={() => setHeld((value) => !value)}
-          aria-label="Hold visual camera signal"
-          data-testid="button-camera-signal"
-        >
-          <span />
-        </button>
-        <span className="line-camera-hint line-mono">{held ? 'SIGNAL HELD / NO CAMERA ACCESS' : 'TAP TO HOLD THE SIGNAL'}</span>
-      </div>
-      <div className="line-camera-footer line-mono"><span>NO DEVICE ACCESS</span><span>VISUAL SHELL ONLY</span></div>
-    </div>
-  );
-}
-
-function RedlineView() {
-  return (
-    <div className="line-view line-redline-view">
-      <header className="line-app-header">
-        <LineMark compact />
-        <span className="line-header-index line-mono">03 / CROWD SIGNAL</span>
-      </header>
-      <div className="line-redline-copy">
-        <span className="line-section-index line-mono">REDLINE / PROTOTYPE</span>
-        <h1 className="line-redline-title line-serif">Find someone<br /><em>in the crowd.</em></h1>
-        <p>The nearest thread is still forming.</p>
-      </div>
-      <div className="line-redline-stage" aria-label="Animated red line approaching a signal point">
-        <div className="line-redline-horizon" aria-hidden="true" />
-        <div className="line-redline-path line-signal" aria-hidden="true" />
-        <div className="line-redline-point line-signal" aria-hidden="true" />
-        <div className="line-redline-label line-mono">SEARCHING / 001</div>
-      </div>
-      <div className="line-redline-note">
-        <LockKeyhole size={15} strokeWidth={1.4} />
-        <span>Nothing is being tracked.</span>
-      </div>
+      {selectedLetter ? (
+        <RepliesView
+          letter={selectedLetter}
+          replies={selectedLetterIsWithinRange ? selectedLetterReplies : []}
+          hasReplies={selectedLetterReplies.length > 0}
+          location={location}
+          onBack={() => setSelectedLetterId(null)}
+          onRepliesUpdated={(updatedReplies) => {
+            const updatesById = new Map(updatedReplies.map((reply) => [reply.id, reply]));
+            setReplies((currentReplies) =>
+              currentReplies.map((reply) => updatesById.get(reply.id) ?? reply),
+            );
+          }}
+        />
+      ) : (
+        <>
+          <div className="line-view-heading">
+            <div>
+              <span className="line-section-index line-mono">YOUR ARCHIVE</span>
+              <h1 className="line-view-title line-serif">What you<br /><em>left behind.</em></h1>
+            </div>
+          </div>
+          <div className="line-my-letters-tabs">
+            <button type="button" className={`line-mono ${showMyLetters ? 'active' : ''}`} onClick={() => setShowMyLetters(true)}>Letters</button>
+            <button type="button" className={`line-mono ${!showMyLetters ? 'active' : ''}`} onClick={() => setShowMyLetters(false)}>Replies</button>
+          </div>
+          {showMyLetters ? (
+            <MyLetters letters={ownedLetters} replies={replies} onSelectLetter={(letter) => setSelectedLetterId(letter.id)} />
+          ) : (
+            <MyReplies replies={replies} location={location} />
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -586,113 +592,61 @@ function ProfileView({ location }: { location: LocationState }) {
         <LineMark compact />
         <span className="line-header-index line-mono">04 / PRIVATE</span>
       </header>
-      {selectedLetter ? (
-        <RepliesView
-          letter={selectedLetter}
-          replies={selectedLetterIsWithinRange ? selectedLetterReplies : []}
-          hasReplies={selectedLetterReplies.length > 0}
-          location={location}
-          onBack={() => setSelectedLetterId(null)}
-          onRepliesUpdated={(updatedReplies) => {
-            const updatesById = new Map(updatedReplies.map((reply) => [reply.id, reply]));
-            setReplies((currentReplies) =>
-              currentReplies.map((reply) => updatesById.get(reply.id) ?? reply),
-            );
-          }}
-        />
-      ) : (
-        <>
-          <div className="line-profile-intro">
-            <span className="line-section-index line-mono">YOUR PROFILE</span>
-            <h1 className="line-profile-title line-serif">{localUser.displayName}</h1>
-            <div className="line-private-note"><ShieldCheck size={15} strokeWidth={1.4} /><span>Your identity is private.</span></div>
+      <div className="line-profile-intro">
+        <span className="line-section-index line-mono">YOUR PROFILE</span>
+        <h1 className="line-profile-title line-serif">{localUser.displayName}</h1>
+        <div className="line-private-note"><ShieldCheck size={15} strokeWidth={1.4} /><span>Your identity is private.</span></div>
+      </div>
+      <section className="line-profile-identity" data-testid="panel-local-identity">
+        <div className="line-profile-identity-topline line-mono">
+          <span>LINE IDENTITY</span>
+          <span>CREATED {formatReplyDate(localUser.createdAt)}</span>
+        </div>
+        <strong className="line-mono" data-testid="text-local-user-id">{localUser.id}</strong>
+        <form onSubmit={saveDisplayName}>
+          <label htmlFor="line-display-name" className="line-mono">DISPLAY NAME</label>
+          <div className="line-profile-name-edit">
+            <input
+              id="line-display-name"
+              value={displayNameDraft}
+              maxLength={40}
+              onChange={(event) => {
+                setDisplayNameDraft(event.target.value);
+                setDisplayNameSaved(false);
+              }}
+              aria-label="Display name"
+              data-testid="input-display-name"
+            />
+            <button type="submit" className="line-mono" data-testid="button-save-display-name">
+              Save
+            </button>
           </div>
-          <section className="line-profile-identity" data-testid="panel-local-identity">
-            <div className="line-profile-identity-topline line-mono">
-              <span>LINE IDENTITY</span>
-              <span>CREATED {formatReplyDate(localUser.createdAt)}</span>
-            </div>
-            <strong className="line-mono" data-testid="text-local-user-id">{localUser.id}</strong>
-            <form onSubmit={saveDisplayName}>
-              <label htmlFor="line-display-name" className="line-mono">DISPLAY NAME</label>
-              <div className="line-profile-name-edit">
-                <input
-                  id="line-display-name"
-                  value={displayNameDraft}
-                  maxLength={40}
-                  onChange={(event) => {
-                    setDisplayNameDraft(event.target.value);
-                    setDisplayNameSaved(false);
-                  }}
-                  aria-label="Display name"
-                  data-testid="input-display-name"
-                />
-                <button type="submit" className="line-mono" data-testid="button-save-display-name">
-                  Save
-                </button>
-              </div>
-            </form>
-            <div className="line-profile-identity-note">
-              <span>{displayNameSaved ? 'DISPLAY NAME SAVED' : 'NO REAL NAME REQUIRED'}</span>
-              <span>PRIVATE / YOUR ACCOUNT</span>
-            </div>
-          </section>
+        </form>
+        <div className="line-profile-identity-note">
+          <span>{displayNameSaved ? 'DISPLAY NAME SAVED' : 'NO REAL NAME REQUIRED'}</span>
+          <span>PRIVATE / YOUR ACCOUNT</span>
+        </div>
+      </section>
+      <div className="line-profile-list" aria-label="Profile settings">
+        {profileRows.map((row, index) => (
           <button
             type="button"
-            className={`line-my-letters-trigger ${showMyLetters ? 'line-my-letters-trigger-active' : ''}`}
-            onClick={() => {
-              setShowMyReplies(false);
-              setShowMyLetters((open) => !open);
-            }}
-            aria-expanded={showMyLetters}
-            data-testid="button-my-letters"
+            key={row}
+            className={`line-profile-row ${activeRow === row ? 'line-profile-row-active' : ''}`}
+            onClick={() => setActiveRow(activeRow === row ? null : row)}
+            data-testid={`button-profile-${row.toLowerCase()}`}
           >
-            <span className="line-my-letters-trigger-copy">
-              <span className="line-mono">YOUR SIGNALS</span>
-              <strong>My letters</strong>
-            </span>
-            <FileText size={17} strokeWidth={1.3} />
+            <span className="line-profile-row-number line-mono">0{index + 1}</span>
+            <span>{row}</span>
+            <ChevronRight size={16} strokeWidth={1.4} />
           </button>
-          {showMyLetters && <MyLetters letters={ownedLetters} replies={replies} onSelectLetter={(letter) => setSelectedLetterId(letter.id)} />}
-          <button
-            type="button"
-            className={`line-my-letters-trigger line-my-replies-trigger ${showMyReplies ? 'line-my-letters-trigger-active' : ''}`}
-            onClick={() => {
-              setShowMyLetters(false);
-              setShowMyReplies((open) => !open);
-            }}
-            aria-expanded={showMyReplies}
-            data-testid="button-my-replies"
-          >
-            <span className="line-my-letters-trigger-copy">
-              <span className="line-mono">YOUR RESPONSES</span>
-              <strong>My replies</strong>
-            </span>
-            <ChevronRight size={17} strokeWidth={1.3} />
-          </button>
-          {showMyReplies && <MyReplies replies={sentReplies} location={location} />}
-          <div className="line-profile-list" aria-label="Profile settings">
-            {profileRows.map((row, index) => (
-              <button
-                type="button"
-                key={row}
-                className={`line-profile-row ${activeRow === row ? 'line-profile-row-active' : ''}`}
-                onClick={() => setActiveRow(activeRow === row ? null : row)}
-                data-testid={`button-profile-${row.toLowerCase()}`}
-              >
-                <span className="line-profile-row-number line-mono">0{index + 1}</span>
-                <span>{row}</span>
-                <ChevronRight size={16} strokeWidth={1.4} />
-              </button>
-            ))}
-          </div>
-          {activeRow && (
-            <div className="line-profile-placeholder line-view-enter" data-testid="text-profile-placeholder">
-              <span className="line-mono">PLACEHOLDER / {activeRow.toUpperCase()}</span>
-              <p>This setting will be available in a future step.</p>
-            </div>
-          )}
-        </>
+        ))}
+      </div>
+      {activeRow && (
+        <div className="line-profile-placeholder line-view-enter" data-testid="text-profile-placeholder">
+          <span className="line-mono">PLACEHOLDER / {activeRow.toUpperCase()}</span>
+          <p>This setting will be available in a future step.</p>
+        </div>
       )}
       <div className="line-profile-footer line-mono">PRIVATE BY DEFAULT / ALWAYS</div>
     </div>
@@ -703,15 +657,25 @@ function AppViewContent({
   activeView,
   location,
   onDropLetter,
+  nearbyLetters,
+  storedLetters,
+  nearbyLoading,
+  nearbyError,
+  onNavigateHome
 }: {
   activeView: AppView;
   location: LocationState;
   onDropLetter: () => void;
+  nearbyLetters: import('@/services/discovery').NearbyLetter[];
+  storedLetters: import('@/services/api').NearbyLetterRecord[];
+  nearbyLoading: boolean;
+  nearbyError: string | null;
+  onNavigateHome: () => void;
 }) {
-  if (activeView === 'camera') return <CameraView />;
-  if (activeView === 'redline') return <RedlineView />;
+  if (activeView === 'camera') return <CameraView location={location} nearbyLetters={nearbyLetters} loading={nearbyLoading || location.loading} networkError={nearbyError} onRefresh={location.requestLocation} onNavigateHome={onNavigateHome} />;
+  if (activeView === 'redline') return <MyLettersView location={location} />;
   if (activeView === 'profile') return <ProfileView location={location} />;
-  return <DiscoverView location={location} onDropLetter={onDropLetter} />;
+  return <DiscoverView location={location} onDropLetter={onDropLetter} storedLetters={storedLetters} nearbyLoading={nearbyLoading} />;
 }
 
 function AppShell() {
@@ -721,6 +685,41 @@ function AppShell() {
   const composerOpenRef = useRef(false);
   const historyEntryRef = useRef(false);
   const closingComposerRef = useRef(false);
+
+  const [storedLetters, setStoredLetters] = useState<import('@/services/api').NearbyLetterRecord[]>([]);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyError, setNearbyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!location.location) {
+      setStoredLetters([]);
+      return;
+    }
+    let cancelled = false;
+    setNearbyLoading(true);
+    setNearbyError(null);
+    void api.nearby(location.location)
+      .then((letters) => {
+        if (!cancelled) setStoredLetters(letters);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStoredLetters([]);
+          setNearbyError('Nearby letters could not be loaded.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setNearbyLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [location.location, location.location?.timestamp]); // add timestamp to re-fetch when location refreshes
+
+  const nearbyLetters = useMemo(
+    () => getNearbyLetters(location.location, storedLetters),
+    [location.location, storedLetters],
+  );
 
   useEffect(() => {
     if (!location.location || typeof window === 'undefined') return;
@@ -807,6 +806,11 @@ function AppShell() {
               activeView={activeView}
               location={location}
               onDropLetter={openComposer}
+              nearbyLetters={nearbyLetters}
+              storedLetters={storedLetters}
+              nearbyLoading={nearbyLoading}
+              nearbyError={nearbyError}
+              onNavigateHome={() => setActiveView('discover')}
             />
           </div>
           <BottomNav activeView={activeView} onChange={setActiveView} />

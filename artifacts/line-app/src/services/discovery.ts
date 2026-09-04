@@ -14,6 +14,7 @@ export type NearbyLetter = {
   top: string;
   left: string;
   tone: 'coral' | 'paper' | 'quiet';
+  bearingDegrees: number;
 };
 
 function toRadians(value: number) {
@@ -75,9 +76,10 @@ export function getNearbyLetters(
       },
       distanceMeters: letter.distanceMeters,
       isUnlocked: letter.isUnlocked,
+      bearingDegrees: letter.bearingDegrees,
     }))
     .sort((first, second) => first.distanceMeters - second.distanceMeters)
-    .map(({ letter, distanceMeters }, index) => {
+    .map(({ letter, distanceMeters, bearingDegrees }, index) => {
       const marker = markerPositions[index % markerPositions.length];
 
       return {
@@ -86,6 +88,7 @@ export function getNearbyLetters(
         distanceMeters,
         distanceLabel: formatDistance(distanceMeters),
         isUnlocked: letter.isUnlocked,
+        bearingDegrees,
         ...marker,
       };
     });

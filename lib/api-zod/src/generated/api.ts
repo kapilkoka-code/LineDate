@@ -123,6 +123,9 @@ export const GetNearbyLineLettersQueryParams = zod.object({
 export const getNearbyLineLettersResponseDistanceMetersMin = 0;
 export const getNearbyLineLettersResponseDistanceMetersMax = 100;
 
+export const getNearbyLineLettersResponseBearingDegreesMin = 0;
+export const getNearbyLineLettersResponseBearingDegreesMax = 359;
+
 
 
 export const GetNearbyLineLettersResponseItem = zod.object({
@@ -134,7 +137,8 @@ export const GetNearbyLineLettersResponseItem = zod.object({
   "status": zod.enum(['dropped']),
   "isOwn": zod.boolean(),
   "isUnlocked": zod.boolean(),
-  "distanceMeters": zod.number().min(getNearbyLineLettersResponseDistanceMetersMin).max(getNearbyLineLettersResponseDistanceMetersMax)
+  "distanceMeters": zod.number().min(getNearbyLineLettersResponseDistanceMetersMin).max(getNearbyLineLettersResponseDistanceMetersMax),
+  "bearingDegrees": zod.number().min(getNearbyLineLettersResponseBearingDegreesMin).max(getNearbyLineLettersResponseBearingDegreesMax).describe('Server-computed initial bearing, quantized to a privacy-preserving directional sector.')
 })
 export const GetNearbyLineLettersResponse = zod.array(GetNearbyLineLettersResponseItem)
 

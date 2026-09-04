@@ -376,7 +376,7 @@ components:
         isOwn: { type: boolean }
     NearbyLetterRecord:
       type: object
-      required: [id, text, createdAt, visibility, anonymous, status, isOwn, isUnlocked, distanceMeters]
+      required: [id, text, createdAt, visibility, anonymous, status, isOwn, isUnlocked, distanceMeters, bearingDegrees]
       properties:
         id: { type: string }
         text: { type: [string, "null"] }
@@ -387,6 +387,11 @@ components:
         isOwn: { type: boolean }
         isUnlocked: { type: boolean }
         distanceMeters: { type: number, minimum: 0, maximum: 100 }
+        bearingDegrees:
+          type: number
+          minimum: 0
+          maximum: 359
+          description: Server-computed initial bearing, quantized to a privacy-preserving directional sector.
     UnlockedLetterRecord:
       type: object
       required: [id, text, createdAt, visibility, anonymous, status, isOwn, isUnlocked, distanceMeters]

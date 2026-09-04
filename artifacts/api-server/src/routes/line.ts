@@ -36,6 +36,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 
 const DISCOVERY_RANGE_METERS = 100;
 const UNLOCK_DISTANCE_METERS = 10;
+const BEARING_SECTOR_DEGREES = 15;
 const router: IRouter = Router();
 
 function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -47,6 +48,20 @@ function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) 
     Math.sin(dLat / 2) ** 2 +
     Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(dLon / 2) ** 2;
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function privacySafeBearingDegrees(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const radians = (degrees: number) => (degrees * Math.PI) / 180;
+  const degrees = (value: number) => (value * 180) / Math.PI;
+  const startLatitude = radians(lat1);
+  const endLatitude = radians(lat2);
+  const longitudeDelta = radians(lon2 - lon1);
+  const y = Math.sin(longitudeDelta) * Math.cos(endLatitude);
+  const x =
+    Math.cos(startLatitude) * Math.sin(endLatitude)
+    - Math.sin(startLatitude) * Math.cos(endLatitude) * Math.cos(longitudeDelta);
+  const bearing = (degrees(Math.atan2(y, x)) + 360) % 360;
+  return Math.round(bearing / BEARING_SECTOR_DEGREES) * BEARING_SECTOR_DEGREES % 360;
 }
 
 function requireUser(req: Request, res: Response): string | null {
@@ -196,6 +211,12 @@ router.get("/letters/nearby", async (req, res) => {
     return [
       {
         ...nearbyLetterResponse(letter, distance),
+        bearingDegrees: privacySafeBearingDegrees(
+          parsed.data.latitude,
+          parsed.data.longitude,
+          letter.latitude,
+          letter.longitude,
+        ),
       },
     ];
   });

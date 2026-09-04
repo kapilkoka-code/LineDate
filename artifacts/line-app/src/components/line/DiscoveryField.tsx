@@ -42,7 +42,7 @@ function EmptyFieldState({
   );
 }
 
-function LetterReader({
+export function LetterReader({
   letter,
   locationAccuracy,
   loading,

@@ -144,6 +144,12 @@ export interface NearbyLetterRecord {
      * @maximum 100
      */
   distanceMeters: number;
+  /**
+     * Server-computed initial bearing, quantized to a privacy-preserving directional sector.
+     * @minimum 0
+     * @maximum 359
+     */
+  bearingDegrees: number;
 }
 
 export type UnlockedLetterRecordVisibility = typeof UnlockedLetterRecordVisibility[keyof typeof UnlockedLetterRecordVisibility];

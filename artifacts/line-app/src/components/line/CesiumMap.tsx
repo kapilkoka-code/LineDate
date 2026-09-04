@@ -14,17 +14,10 @@ type CesiumMapProps = {
 const ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
 const ION_ASSET_ID = import.meta.env.VITE_CESIUM_ION_ASSET_ID as string | undefined;
 
-function stableBearing(value: string) {
-  let hash = 0;
-  for (const character of value) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  return (hash % 360) * (Math.PI / 180);
-}
-
 function makeSignalPosition(letter: NearbyLetter, location: LocationData) {
-  // Step 12 withholds letter coordinates by design. These anonymous signal
-  // positions are deliberately radial, not geographic, while distance remains
-  // the server-computed value shown to the user.
-  const bearing = stableBearing(letter.id);
+  // The API withholds exact coordinates. It returns only a coarse,
+  // privacy-preserving bearing and the server-computed distance.
+  const bearing = letter.bearingDegrees * (Math.PI / 180);
   const north = Math.cos(bearing) * letter.distanceMeters;
   const east = Math.sin(bearing) * letter.distanceMeters;
   const latitude = location.latitude + north / 111_320;

@@ -36,13 +36,17 @@ export function CesiumMap({ location, letters, onSelect, onUnavailable }: Cesium
 
   useEffect(() => {
     if (!containerRef.current) return;
-    if (!window.WebGLRenderingContext) {
-      setInitializationError('3D rendering is not supported in this browser.');
+    const capabilityCanvas = document.createElement('canvas');
+    const webgl2 = capabilityCanvas.getContext('webgl2');
+    if (!webgl2) {
+      setInitializationError('This browser cannot start the 3D view.');
       onUnavailable();
       return;
     }
+    webgl2.getExtension('WEBGL_lose_context')?.loseContext();
 
     let viewer: Cesium.Viewer;
+    let removeRenderErrorListener: (() => void) | null = null;
     try {
       if (ION_TOKEN) Cesium.Ion.defaultAccessToken = ION_TOKEN;
       viewer = new Cesium.Viewer(containerRef.current, {
@@ -63,7 +67,7 @@ export function CesiumMap({ location, letters, onSelect, onUnavailable }: Cesium
         creditContainer: creditsRef.current ?? containerRef.current,
         msaaSamples: 1,
         contextOptions: {
-          requestWebgl1: true,
+          requestWebgl1: false,
           webgl: {
             alpha: false,
             antialias: false,
@@ -78,6 +82,10 @@ export function CesiumMap({ location, letters, onSelect, onUnavailable }: Cesium
       viewer.scene.screenSpaceCameraController.enableRotate = true;
       viewer.scene.globe.enableLighting = false;
       viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#11100f');
+      removeRenderErrorListener = viewer.scene.renderError.addEventListener(() => {
+        setInitializationError('The 3D view stopped unexpectedly.');
+        onUnavailable();
+      });
 
       const imageryProvider = new Cesium.UrlTemplateImageryProvider({
         url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -113,6 +121,7 @@ export function CesiumMap({ location, letters, onSelect, onUnavailable }: Cesium
     }
 
     return () => {
+      removeRenderErrorListener?.();
       if (viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.destroy();
       viewerRef.current = null;
       youEntityRef.current = null;

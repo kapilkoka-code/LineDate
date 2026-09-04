@@ -1,4 +1,4 @@
-import { Camera, Compass, RefreshCw, ScanLine } from 'lucide-react';
+import { Camera, Compass, RefreshCw, ScanLine, Volume2, VolumeX } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -20,7 +20,16 @@ import {
   type SensorConfidence,
 } from '@/hooks/useOrientationController';
 import type { NearbyLetter } from '@/services/discovery';
-import { playFindSound } from '@/services/findSound';
+import {
+  disposeFindAudio,
+  getFindAudioDiagnostics,
+  initializeFindAudio,
+  playFindSound,
+  setFindAudioEnabled,
+  suspendFindAudio,
+  updateFindAudioScene,
+  type FindAudioDiagnostics,
+} from '@/services/findSound';
 import { getSpatialLineMetrics } from '@/services/spatialLine';
 import {
   startWorldArSession,
@@ -51,8 +60,8 @@ type VisualSignal = {
 const DEVELOPMENT_MODE = import.meta.env.DEV;
 const FIND_REFRESH_INTERVAL_MS = 15_000;
 const SIMULATED_DISTANCES = [100, 50, 20, 10, 5] as const;
-const SIMULATED_BEARINGS = [0, 90, 180, 270] as const;
-const SIMULATED_HEADINGS = [0, 90, 180, 270] as const;
+const SIMULATED_BEARINGS = [0, 45, 90, 180, 270, 315] as const;
+const SIMULATED_HEADINGS = [0, 45, 90, 180, 270, 315] as const;
 const INITIAL_AR_DIAGNOSTICS: WorldArDiagnostics = {
   trackingState: 'ended',
   confidence: 'unavailable',
@@ -102,6 +111,20 @@ export function CameraView({
   const [simulatedBearing, setSimulatedBearing] = useState<number>(0);
   const [simulatedHeading, setSimulatedHeading] = useState<number>(0);
   const [showTestControls, setShowTestControls] = useState(false);
+  const [simulatedMultipleSignals, setSimulatedMultipleSignals] = useState(false);
+  const [simulatedConfidence, setSimulatedConfidence] = useState<SensorConfidence>('high');
+  const [simulatedAudioUnavailable, setSimulatedAudioUnavailable] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('line-find-audio') !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const [audioDiagnostics, setAudioDiagnostics] = useState<FindAudioDiagnostics>(() => getFindAudioDiagnostics());
+  const [reducedMotion, setReducedMotion] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
   const [pulseLetterId, setPulseLetterId] = useState<string | null>(null);
   const [worldArActive, setWorldArActive] = useState(false);
   const [worldArStarting, setWorldArStarting] = useState(false);
@@ -112,6 +135,7 @@ export function CameraView({
   const streamRef = useRef<MediaStream | null>(null);
   const worldArControllerRef = useRef<WorldArController | null>(null);
   const worldArRequestRef = useRef(0);
+  const audioSceneRequestRef = useRef(0);
   const cameraRequestRef = useRef(0);
   const mountedRef = useRef(true);
   const dragRef = useRef<{ pointerId: number; startX: number; startYaw: number } | null>(null);
@@ -136,7 +160,7 @@ export function CameraView({
   const visualSignals = useMemo<VisualSignal[]>(() => {
     if (cameraState === 'simulated') {
       const source = prioritizedLetters[0] ?? null;
-      return [{
+      const primary: VisualSignal = {
         id: source?.id ?? 'development-test',
         source,
         distanceMeters: simulatedDistance,
@@ -144,7 +168,25 @@ export function CameraView({
         // Simulation changes presentation only. Authorization always comes
         // from the real server response for a real nearby letter.
         isUnlocked: source?.isUnlocked === true,
-      }];
+      };
+      if (!simulatedMultipleSignals) return [primary];
+      return [
+        primary,
+        {
+          id: 'development-test-secondary',
+          source: null,
+          distanceMeters: Math.min(100, simulatedDistance + 18),
+          bearingDegrees: normalizeDegrees(simulatedBearing + 45),
+          isUnlocked: false,
+        },
+        {
+          id: 'development-test-tertiary',
+          source: null,
+          distanceMeters: Math.min(100, simulatedDistance + 36),
+          bearingDegrees: normalizeDegrees(simulatedBearing - 70),
+          isUnlocked: false,
+        },
+      ];
     }
 
     return prioritizedLetters.map((letter) => ({
@@ -154,7 +196,13 @@ export function CameraView({
       bearingDegrees: letter.bearingDegrees,
       isUnlocked: letter.isUnlocked,
     }));
-  }, [cameraState, prioritizedLetters, simulatedBearing, simulatedDistance]);
+  }, [
+    cameraState,
+    prioritizedLetters,
+    simulatedBearing,
+    simulatedDistance,
+    simulatedMultipleSignals,
+  ]);
 
   const primarySignal = visualSignals[0] ?? null;
   const gpsDirectionUncertain = Boolean(
@@ -182,7 +230,7 @@ export function CameraView({
       ? sensorHeading
       : manualHeading;
   const directionalConfidence: SensorConfidence = cameraState === 'simulated'
-    ? 'high'
+    ? simulatedConfidence
     : sensorHeadingAvailable
       ? orientation.confidence
       : 'unavailable';
@@ -247,26 +295,67 @@ export function CameraView({
     setCameraState('requesting');
     if (!location.location) onRefresh();
     const orientationRequest = orientation.requestPermission();
-    playFindSound('startup');
+    const audioRequest = audioEnabled
+      ? initializeFindAudio().then(() => playFindSound('startup'))
+      : Promise.resolve();
 
     stopCamera();
-    const [cameraResult] = await Promise.all([acquireCamera(), orientationRequest]);
+    const [cameraResult] = await Promise.all([acquireCamera(), orientationRequest, audioRequest]);
     if (!mountedRef.current) return;
     if (cameraResult === 'granted') setCameraState('granted');
     else if (cameraResult === 'denied') setCameraState('denied');
     else setCameraState('prompt');
-  }, [acquireCamera, location.location, onRefresh, orientation, stopCamera]);
+  }, [acquireCamera, audioEnabled, location.location, onRefresh, orientation, stopCamera]);
+
+  const startDevelopmentMode = useCallback(() => {
+    setCameraState('simulated');
+    if (audioEnabled) {
+      void initializeFindAudio().then((nextDiagnostics) => {
+        if (DEVELOPMENT_MODE) setAudioDiagnostics(nextDiagnostics);
+        playFindSound('startup');
+      });
+    }
+  }, [audioEnabled]);
+
+  const toggleFindAudio = useCallback(() => {
+    const nextEnabled = !audioEnabled;
+    setAudioEnabled(nextEnabled);
+    if (nextEnabled) {
+      void initializeFindAudio().then((nextDiagnostics) => {
+        if (DEVELOPMENT_MODE) setAudioDiagnostics(nextDiagnostics);
+      });
+    }
+  }, [audioEnabled]);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       worldArRequestRef.current += 1;
+      audioSceneRequestRef.current += 1;
       void worldArControllerRef.current?.end('system');
       worldArControllerRef.current = null;
       stopCamera();
+      void disposeFindAudio();
     };
   }, [stopCamera]);
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handleChange = () => setReducedMotion(media.matches);
+    media.addEventListener?.('change', handleChange);
+    return () => media.removeEventListener?.('change', handleChange);
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('line-find-audio', audioEnabled ? 'on' : 'off');
+    } catch {
+      // Audio preference remains session-local when storage is unavailable.
+    }
+    const nextDiagnostics = setFindAudioEnabled(audioEnabled);
+    if (DEVELOPMENT_MODE) setAudioDiagnostics(nextDiagnostics);
+  }, [audioEnabled]);
 
   useEffect(() => {
     const updateAmbientMode = () => {
@@ -294,6 +383,8 @@ export function CameraView({
       const visible = document.visibilityState === 'visible';
       setPageVisible(visible);
       if (!visible) {
+        audioSceneRequestRef.current += 1;
+        void suspendFindAudio();
         worldArRequestRef.current += 1;
         const controller = worldArControllerRef.current;
         worldArControllerRef.current = null;
@@ -306,6 +397,8 @@ export function CameraView({
       }
     };
     const handlePageHide = () => {
+      audioSceneRequestRef.current += 1;
+      void suspendFindAudio();
       setPageVisible(false);
       worldArRequestRef.current += 1;
       const controller = worldArControllerRef.current;
@@ -445,6 +538,65 @@ export function CameraView({
   }, [selectedLetter, selectedLetterId]);
 
   useEffect(() => {
+    const requestId = audioSceneRequestRef.current + 1;
+    audioSceneRequestRef.current = requestId;
+    const sceneActive = audioEnabled
+      && pageVisible
+      && selectedLetter === null
+      && !replyOpen
+      && !worldArStarting
+      && (cameraState === 'granted' || cameraState === 'simulated')
+      && visualSignals.length > 0;
+    const audioConfidence = worldArActive ? 'unavailable' : directionalConfidence;
+    const scene = {
+      active: sceneActive,
+      confidence: audioConfidence,
+      reducedMotion,
+      simulateUnavailable: DEVELOPMENT_MODE && simulatedAudioUnavailable,
+      signals: visualSignals.map((signal, index) => ({
+        id: signal.id,
+        distanceMeters: signal.distanceMeters,
+        angularDifference: signedAngleDifference(signal.bearingDegrees, visualHeading),
+        prominence: index === 0 ? 'primary' as const : index === 1 ? 'secondary' as const : 'tertiary' as const,
+        isUnlocked: signal.isUnlocked,
+      })),
+    };
+
+    if (!sceneActive) {
+      const nextDiagnostics = updateFindAudioScene(scene);
+      if (DEVELOPMENT_MODE) setAudioDiagnostics(nextDiagnostics);
+      void suspendFindAudio();
+      return;
+    }
+
+    void initializeFindAudio().then(() => {
+      if (
+        !mountedRef.current
+        || audioSceneRequestRef.current !== requestId
+        || document.visibilityState !== 'visible'
+      ) return;
+      const nextDiagnostics = updateFindAudioScene(scene);
+      if (DEVELOPMENT_MODE) setAudioDiagnostics(nextDiagnostics);
+    });
+    return () => {
+      if (audioSceneRequestRef.current === requestId) audioSceneRequestRef.current += 1;
+    };
+  }, [
+    audioEnabled,
+    cameraState,
+    directionalConfidence,
+    pageVisible,
+    reducedMotion,
+    replyOpen,
+    selectedLetter,
+    simulatedAudioUnavailable,
+    visualHeading,
+    visualSignals,
+    worldArActive,
+    worldArStarting,
+  ]);
+
+  useEffect(() => {
     const unlockedId = prioritizedLetters.find((letter) => letter.isUnlocked)?.id ?? null;
     if (unlockedId && unlockedId !== lastUnlockedIdRef.current) {
       lastUnlockedIdRef.current = unlockedId;
@@ -551,9 +703,7 @@ export function CameraView({
             <button
               type="button"
               className="line-btn-secondary line-mono"
-              onClick={() => {
-                setCameraState('simulated');
-              }}
+              onClick={startDevelopmentMode}
               data-testid="button-start-find-test-mode"
             >
               Development test mode
@@ -588,9 +738,7 @@ export function CameraView({
             <button
               type="button"
               className="line-btn-secondary line-mono"
-              onClick={() => {
-                setCameraState('simulated');
-              }}
+              onClick={startDevelopmentMode}
             >
               Development test mode
             </button>
@@ -721,6 +869,16 @@ export function CameraView({
         {!worldArActive && <div className="line-camera-crosshair" aria-hidden="true" />}
 
         <div className="line-find-controls">
+          <button
+            type="button"
+            className="line-find-audio-toggle line-mono"
+            onClick={toggleFindAudio}
+            aria-pressed={audioEnabled}
+            data-testid="button-toggle-find-audio"
+          >
+            {audioEnabled ? <Volume2 size={13} aria-hidden="true" /> : <VolumeX size={13} aria-hidden="true" />}
+            Audio {audioEnabled ? 'on' : 'off'}
+          </button>
           {locationUnavailable || networkError ? (
             <button type="button" className="line-find-refresh line-mono" onClick={onRefresh} disabled={loading} data-testid="button-refresh-find">
               <RefreshCw size={13} className={loading ? 'line-refresh-spinning' : ''} aria-hidden="true" />
@@ -805,6 +963,39 @@ export function CameraView({
               ))}
             </div>
             <div>
+              <span className="line-mono">Confidence</span>
+              {(['high', 'medium', 'low', 'unavailable'] as const).map((confidence) => (
+                <button
+                  type="button"
+                  key={confidence}
+                  onClick={() => setSimulatedConfidence(confidence)}
+                  aria-pressed={simulatedConfidence === confidence}
+                >
+                  {confidence}
+                </button>
+              ))}
+            </div>
+            <div>
+              <span className="line-mono">Audio scene</span>
+              <button
+                type="button"
+                onClick={() => setSimulatedMultipleSignals((current) => !current)}
+                aria-pressed={simulatedMultipleSignals}
+              >
+                {simulatedMultipleSignals ? '3 signals' : '1 signal'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSimulatedAudioUnavailable((current) => !current)}
+                aria-pressed={simulatedAudioUnavailable}
+              >
+                {simulatedAudioUnavailable ? 'Audio unavailable' : 'Audio available'}
+              </button>
+              <button type="button" onClick={() => playFindSound('unlock')}>
+                Preview found bloom
+              </button>
+            </div>
+            <div>
               <span className="line-mono">Wrap-around</span>
               <button
                 type="button"
@@ -842,8 +1033,14 @@ export function CameraView({
               <div><dt>AR rotation</dt><dd>{worldArDiagnostics.cameraOrientation ? `${worldArDiagnostics.cameraOrientation.x.toFixed(2)}, ${worldArDiagnostics.cameraOrientation.y.toFixed(2)}, ${worldArDiagnostics.cameraOrientation.z.toFixed(2)}, ${worldArDiagnostics.cameraOrientation.w.toFixed(2)}` : 'Unavailable'}</dd></div>
               <div><dt>AR anchor</dt><dd>{worldArDiagnostics.anchorState} / {worldArDiagnostics.referenceSpace}</dd></div>
               <div><dt>AR losses / FPS</dt><dd>{worldArDiagnostics.trackingLosses} / {worldArDiagnostics.framesPerSecond?.toFixed(0) ?? '—'}</dd></div>
+              <div><dt>Audio enabled</dt><dd>{audioDiagnostics.enabled ? 'YES' : 'NO'}</dd></div>
+              <div><dt>Audio capability</dt><dd>{audioDiagnostics.capability.toUpperCase()}</dd></div>
+              <div><dt>Audio lifecycle</dt><dd>{audioDiagnostics.lifecycle.toUpperCase()}</dd></div>
+              <div><dt>Audio delta / pan</dt><dd>{audioDiagnostics.angularDifference === null ? '—' : `${Math.round(audioDiagnostics.angularDifference)}° / ${audioDiagnostics.pan.toFixed(2)}`}</dd></div>
+              <div><dt>Audio distance / level</dt><dd>{audioDiagnostics.distanceMeters === null ? '—' : `${Math.round(audioDiagnostics.distanceMeters)}m / ${(audioDiagnostics.intensity * 100).toFixed(0)}%`}</dd></div>
+              <div><dt>Audio confidence / voices</dt><dd>{audioDiagnostics.confidence.toUpperCase()} / {audioDiagnostics.activeVoices}</dd></div>
             </dl>
-            <p>Visual simulation only. Server access remains locked.</p>
+            <p>Visual and audio simulation only. Server access remains locked.</p>
           </aside>
         )}
       </div>

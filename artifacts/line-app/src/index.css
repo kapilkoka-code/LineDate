@@ -3943,6 +3943,18 @@ a:focus-visible {
   backdrop-filter: blur(10px);
 }
 
+.line-find-audio-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-color: rgba(232, 223, 209, 0.2) !important;
+  color: rgba(232, 223, 209, 0.76) !important;
+}
+
+.line-find-audio-toggle[aria-pressed='false'] {
+  color: rgba(232, 223, 209, 0.45) !important;
+}
+
 .line-find-refresh {
   display: inline-flex;
   align-items: center;
@@ -3978,6 +3990,7 @@ a:focus-visible {
 .line-find-test-panel > div {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 5px;
   margin-bottom: 9px;
 }

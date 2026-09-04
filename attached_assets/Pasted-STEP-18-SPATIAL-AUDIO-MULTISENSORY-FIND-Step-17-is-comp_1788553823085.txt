@@ -1,0 +1,404 @@
+STEP 18 — SPATIAL AUDIO + MULTISENSORY FIND
+
+Step 17 is complete.
+
+LINE now supports:
+
+* Genuine world-tracked AR on supported Android Chrome + ARCore/WebXR
+* Sensor-spatial fallback on iOS and unsupported browsers
+* Camera-only fallback
+* Map fallback
+* Cinematic twin-beam LINE visualization
+* Distance/depth-responsive visuals
+* Server-authoritative proximity and unlocking
+* Privacy-preserving spatial data
+* Safe camera/sensor/AR lifecycle handling
+
+Do NOT rebuild Steps 14–17.
+
+The goal of Step 18 is to add a subtle spatial audio layer so the user can begin finding a LINE through sound as well as sight.
+
+The emotional principle is:
+
+The light shows you where to look.
+The sound makes you feel that something is there.
+
+1. AUDIO MUST BE SECONDARY
+
+Do NOT turn LINE into a game with:
+
+* loud beeps
+* compass-style ticking
+* constant directional pings
+* exaggerated game sounds
+* annoying navigation instructions
+
+The experience should remain cinematic, quiet and mysterious.
+
+Audio should feel like an atmospheric signal rather than a GPS instruction.
+
+2. AUDIO STATES
+
+Create an audio state system corresponding to the existing LINE hierarchy.
+
+PRIMARY:
+
+* strongest subtle spatial presence
+
+SECONDARY:
+
+* quieter and less frequent
+
+TERTIARY:
+
+* extremely subtle or atmospheric
+
+No signal:
+
+* silence
+
+3. DIRECTIONAL AUDIO
+
+Where browser/device capabilities allow:
+
+Use the existing verified bearing + device heading to calculate the angular relationship between:
+
+USER HEADING
+and
+LINE BEARING
+
+Use this to control the perceived stereo/spatial position.
+
+Examples:
+
+LINE directly ahead:
+→ centered sound
+
+LINE 45° right:
+→ subtly right-weighted
+
+LINE 90° right:
+→ strongly right-weighted
+
+LINE behind:
+→ subtle rear/side impression where supported
+
+Do not make the audio mechanically perfect if the platform cannot provide reliable spatial audio.
+
+The visual system remains authoritative.
+
+4. DISTANCE RESPONSE
+
+Use existing server-provided distance information.
+
+Far:
+
+* extremely quiet
+* broad atmospheric presence
+
+Medium:
+
+* slightly clearer
+
+Near:
+
+* warmer/more defined presence
+
+Approaching unlock:
+
+* subtle increase in intensity
+
+At unlock:
+
+* one restrained spatial confirmation/bloom
+
+Do NOT use a conventional “success” sound.
+
+The sound should feel like:
+
+“You found it.”
+
+5. APPROACHING BEHAVIOR
+
+As the user moves toward a LINE:
+
+* audio becomes gradually more perceptible
+* directional localization becomes clearer
+* visual beam becomes stronger according to Steps 15–17
+* both systems should reinforce each other
+
+Avoid abrupt volume changes.
+
+Use smooth interpolation.
+
+6. MULTIPLE SIGNALS
+
+If multiple LINEs are nearby:
+
+Primary:
+
+* dominant audio signal
+
+Secondary:
+
+* faint secondary presence
+
+Tertiary:
+
+* optional atmospheric layer
+
+Do not play three competing melodies.
+
+Keep the soundscape extremely sparse.
+
+7. AUDIO ENGINE
+
+Use the lightest reliable browser audio implementation available in the existing stack.
+
+Prefer:
+
+* Web Audio API
+* PannerNode or equivalent spatial positioning where supported
+* AudioContext lifecycle management
+* lazy initialization
+* user-gesture activation
+
+Do NOT introduce a large audio library unless the existing architecture genuinely requires it.
+
+8. MOBILE AUDIO PERMISSIONS
+
+Respect mobile browser restrictions.
+
+Audio should initialize only after an explicit user interaction such as:
+
+START FINDING
+
+If audio cannot start:
+
+* FIND must continue normally
+* visual LINE experience remains fully functional
+* no blocking error
+* no repeated permission prompts
+
+9. SENSOR CONFIDENCE
+
+Reuse Step 15 confidence.
+
+HIGH confidence:
+
+* stronger directional localization
+
+MEDIUM:
+
+* soften spatial direction
+
+LOW:
+
+* mostly atmospheric/centered audio
+
+UNAVAILABLE:
+
+* disable directional audio
+
+Never make the audio appear more precise than the sensor system actually is.
+
+10. WORLD AR INTEGRATION
+
+For Step 17 world-tracked AR:
+
+Investigate whether the available browser/device environment supports spatial audio positioning consistently with the XR coordinate system.
+
+If reliable:
+
+* align audio position with the world-anchored LINE
+
+If not:
+
+* use the existing bearing-based directional model
+
+Do not claim world-locked audio unless it is genuinely world-locked.
+
+11. LIFECYCLE SAFETY
+
+Audio must stop or suspend when:
+
+* FIND closes
+* letter reader opens
+* reply composer opens
+* application backgrounds
+* page becomes hidden
+* camera session ends
+* sensor session ends
+
+Audio must resume safely when FIND becomes active again.
+
+Avoid:
+
+* duplicate AudioContexts
+* audio continuing behind other screens
+* memory leaks
+* multiple simultaneous signal loops
+
+12. REDUCED MOTION / ACCESSIBILITY
+
+Respect the existing reduced-motion preference.
+
+Do not make accessibility users dependent on animation or rapid audio changes.
+
+Provide a way for users to disable FIND audio independently.
+
+Visual FIND must remain fully usable without sound.
+
+13. HAPTIC INTEGRATION
+
+Reuse the existing unlock haptic behavior.
+
+Add only minimal optional haptic feedback for:
+
+* entering very close proximity
+* successful unlock
+
+Do not create continuous vibration while searching.
+
+14. USER CONTROLS
+
+Add a discreet FIND audio control.
+
+Possible states:
+
+🔊 Audio On
+
+🔇 Audio Off
+
+Do not make this a large interface element.
+
+The FIND screen should remain visually immersive.
+
+15. DEVELOPMENT DIAGNOSTICS
+
+Development-only diagnostics may expose:
+
+* audio enabled/disabled
+* audio capability
+* angular difference
+* calculated pan/spatial position
+* distance
+* volume/intensity
+* sensor confidence
+* audio lifecycle state
+
+Remove all diagnostics from production.
+
+16. PRIVACY
+
+Audio must never reveal:
+
+* writer identity
+* exact letter coordinates
+* hidden letters outside the user’s authorized discovery context
+
+Audio is purely a rendering layer.
+
+Server authority remains unchanged.
+
+17. PERFORMANCE
+
+Do not create an audio processing loop running unnecessarily at 60fps.
+
+Update spatial audio only when meaningful values change.
+
+Use smoothing/interpolation rather than excessive updates.
+
+Keep mobile battery impact minimal.
+
+18. VALIDATION
+
+Add development tests for:
+
+* LINE directly ahead
+* 45° left
+* 45° right
+* 90° left
+* 90° right
+* directly behind
+* 359° → 0° wrap-around
+* far → medium → near
+* multiple LINE hierarchy
+* sensor confidence changes
+* audio disabled
+* audio permission denied
+* FIND background/foreground
+* reader transition
+* reduced motion
+* unlock confirmation
+
+19. REAL DEVICE VALIDATION
+
+Document a real-device test procedure for:
+
+Android Chrome + supported WebXR/ARCore:
+
+* world tracking
+* visual LINE
+* audio direction
+* movement
+* approach
+* unlock
+
+iOS Safari:
+
+* sensor-spatial fallback
+* directional audio
+* camera
+* movement
+* approach
+* unlock
+
+Unsupported browsers:
+
+* camera fallback
+* audio failure handling
+* map fallback
+
+Do not claim spatial-audio accuracy without physical testing.
+
+ACCEPTANCE CRITERIA
+
+Step 18 is complete only when:
+
+* FIND works completely without audio.
+* Audio is an enhancement, never a dependency.
+* Directional audio follows the existing bearing/heading model.
+* Distance smoothly affects audio intensity.
+* Primary/secondary/tertiary hierarchy is respected.
+* Audio never becomes distracting.
+* Unlock has a subtle confirmation.
+* Existing haptics remain functional.
+* Audio lifecycle is leak-free.
+* Background/foreground behavior is safe.
+* Reduced-motion/accessibility behavior remains correct.
+* No private coordinates are exposed.
+* Server authorization remains untouched.
+* Typecheck passes.
+* LINE production build passes.
+* API build passes.
+* Health check passes.
+* Production contains no diagnostics.
+* Existing Step 14–17 behavior remains intact.
+
+DESIGN PRINCIPLE
+
+Do not make the user think:
+
+“The app is telling me to turn right.”
+
+Make them feel:
+
+“There is something over there.”
+
+The ultimate FIND experience should become:
+
+SEE THE LIGHT.
+HEAR THE PRESENCE.
+MOVE TOWARD IT.
+FIND THE LETTER.

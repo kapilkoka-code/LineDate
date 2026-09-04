@@ -1,5 +1,5 @@
 import { ArrowUpRight, ChevronRight, FileText, LockKeyhole, PenLine, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useAuth } from '@workspace/replit-auth-web';
 import { BottomNav, type AppView } from '@/components/line/BottomNav';
 import { DiscoveryField } from '@/components/line/DiscoveryField';
@@ -23,6 +23,7 @@ import { loadReplies, type LetterReply } from '@/services/replies';
 import { api } from '@/services/api';
 
 const profileRows = ['Privacy', 'Notifications', 'Location', 'Safety', 'Account'];
+const CesiumMap = lazy(() => import('@/components/line/CesiumMap').then((module) => ({ default: module.CesiumMap })));
 
 function OpeningScreen({ onSignIn }: { onSignIn: () => void }) {
   return (
@@ -60,6 +61,7 @@ function OpeningScreen({ onSignIn }: { onSignIn: () => void }) {
 
 function DiscoverView({ location, onDropLetter }: { location: LocationState; onDropLetter: () => void }) {
   const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
+  const [mapUnavailable, setMapUnavailable] = useState(false);
   const [storedLetters, setStoredLetters] = useState<import('@/services/api').NearbyLetterRecord[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
 
@@ -91,6 +93,8 @@ function DiscoverView({ location, onDropLetter }: { location: LocationState; onD
   );
   const locationReady = location.status === 'active' && location.location !== null;
   const selectedLetter = nearbyLetters.find((letter) => letter.id === selectedLetterId) ?? null;
+  const selectLetter = useCallback((letterId: string) => setSelectedLetterId(letterId), []);
+  const markMapUnavailable = useCallback(() => setMapUnavailable(true), []);
 
   useEffect(() => {
     if (selectedLetterId && locationReady && !selectedLetter) {
@@ -119,6 +123,11 @@ function DiscoverView({ location, onDropLetter }: { location: LocationState; onD
         </span>
         <PenLine size={17} strokeWidth={1.3} />
       </button>
+      {mapUnavailable && (
+        <div className="line-map-fallback-note line-mono" role="status" data-testid="state-map-fallback">
+          3D MAP UNAVAILABLE / SIGNAL FIELD ACTIVE
+        </div>
+      )}
       <DiscoveryField
         letters={nearbyLetters}
         selectedLetter={selectedLetter}
@@ -128,8 +137,18 @@ function DiscoverView({ location, onDropLetter }: { location: LocationState; onD
         locationAccuracy={location.location?.accuracy ?? null}
         loading={location.loading || nearbyLoading}
         searching={nearbyLoading}
+        mapContent={mapUnavailable ? undefined : (
+          <Suspense fallback={<div className="line-cesium-map-status line-mono">LOADING 3D WORLD…</div>}>
+            <CesiumMap
+              location={location.location}
+              letters={nearbyLetters}
+              onSelect={selectLetter}
+              onUnavailable={markMapUnavailable}
+            />
+          </Suspense>
+        )}
         onRefresh={location.requestLocation}
-        onSelect={(letter) => setSelectedLetterId(letter.id)}
+        onSelect={(letter) => selectLetter(letter.id)}
         onDismiss={() => setSelectedLetterId(null)}
       />
       <div className="line-discover-footnote line-mono">

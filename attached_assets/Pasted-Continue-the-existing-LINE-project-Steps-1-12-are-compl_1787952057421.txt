@@ -1,0 +1,142 @@
+Continue the existing LINE project. Steps 1–12 are complete and validated. Do not rebuild or break existing functionality.
+
+STEP 13 — 3D MAP INTEGRATION
+
+Integrate a CesiumJS-based 3D globe/city map experience into LINE’s DISCOVER screen, inspired by the existing open-source God’s Eye View repository:
+
+https://github.com/bilawalsidhu/gods-eye-view
+
+IMPORTANT
+
+Do not simply recreate the appearance.
+
+Inspect the repository and reuse/adapt its relevant map architecture/code where technically and legally appropriate.
+
+The repository is MIT-licensed, but its third-party imagery, 3D tiles, datasets and API services may have separate licenses/terms. Do not copy or redistribute third-party assets unless their usage is permitted.
+
+Use the appropriate Cesium/3D Tiles configuration and environment variables/API keys through Replit secrets where required.
+
+GOAL
+
+Replace the current basic DISCOVER visualization with a premium interactive 3D world.
+
+The map should feel like:
+
+LINE — a social layer over the real world.
+
+MAP
+
+Implement:
+
+* CesiumJS 3D globe/city environment
+* smooth zoom
+* pan
+* rotation
+* tilt
+* mobile touch controls
+* user’s current location
+* dark/premium LINE styling where supported
+
+Keep the experience performant on mobile.
+
+LINE LAYER
+
+Add the user’s current position as:
+
+YOU
+
+Add the existing real nearby letters as minimal LINE markers.
+
+Use the existing Step 12 API.
+
+Markers must use the existing privacy-safe response:
+
+* letter ID
+* distanceMeters
+* no coordinates exposed to the UI
+* no writer ID
+* no writer name
+* no letter text until unlocked
+
+Do not create a second discovery system.
+
+LETTER INTERACTION
+
+Tapping a marker should open the existing LINE letter preview.
+
+Preserve the existing rules:
+
+100m discovery range
+
+10m unlock range
+
+Locked letters remain locked.
+
+Unlocked letters can use the existing reader.
+
+Do not modify the existing reply, identity-reveal, or physical-access systems.
+
+LOCATION
+
+Use the existing location service.
+
+Do not create another GPS implementation.
+
+The map should center on the user’s current location after permission is granted.
+
+Do not continuously poll GPS.
+
+Use the existing manual refresh mechanism.
+
+FALLBACK
+
+If Cesium/3D tiles cannot load because of:
+
+* missing API key
+* network failure
+* unsupported browser
+* provider error
+
+show a clean LINE error/fallback state rather than breaking the application.
+
+The rest of LINE must remain usable.
+
+DO NOT IMPLEMENT YET
+
+Do NOT build:
+
+* AR camera
+* REDLINE
+* 3D letter objects
+* navigation lines
+* real-time user tracking
+* payments
+* notifications
+* chat
+* new backend discovery logic
+
+This step is only:
+
+3D MAP → YOU → EXISTING LETTER MARKERS
+
+TEST
+
+Verify:
+
+1. DISCOVER loads the 3D map.
+2. Map controls work on mobile.
+3. User location is represented correctly.
+4. Real database letters appear as markers.
+5. Only eligible nearby letters appear.
+6. Existing 100m discovery and 10m unlock rules remain intact.
+7. Letter contents remain protected.
+8. No private coordinates or identities leak.
+9. Existing replies and identity reveal still work.
+10. Existing Drop a Letter and My Letters flows still work.
+11. Map fallback works when the provider is unavailable.
+12. TypeScript typecheck passes.
+13. Production build passes.
+14. Mobile performance is acceptable.
+15. Browser/server logs are clean.
+
+After completing Step 13, STOP. Do not implement Step 14.

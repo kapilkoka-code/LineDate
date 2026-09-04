@@ -1,0 +1,1 @@
+- [Cesium pnpm resolution](cesium-pnpm-resolution.md) — pin Cesium internals and verify nested symlinks so Vite dev optimization cannot resolve incompatible patches.

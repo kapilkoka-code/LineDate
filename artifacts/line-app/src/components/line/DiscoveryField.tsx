@@ -1,5 +1,5 @@
 import { BookOpen, LockKeyhole, RefreshCw, ShieldAlert, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { LocationData, LocationStatus } from '@/hooks/useLocation';
 import { ReplyComposer } from '@/components/line/ReplyComposer';
 import { UNLOCK_DISTANCE_METERS, type NearbyLetter } from '@/services/discovery';
@@ -13,6 +13,7 @@ type DiscoveryFieldProps = {
   locationAccuracy: number | null;
   loading: boolean;
   searching: boolean;
+  mapContent?: ReactNode;
   onRefresh: () => void;
   onSelect: (letter: NearbyLetter) => void;
   onDismiss: () => void;
@@ -112,6 +113,7 @@ export function DiscoveryField({
   locationAccuracy,
   loading,
   searching,
+  mapContent,
   onRefresh,
   onSelect,
   onDismiss,
@@ -164,16 +166,16 @@ export function DiscoveryField({
 
   return (
     <section
-      className={`line-discovery-field line-view-enter ${hasResults ? '' : 'line-discovery-field-empty'}`}
+      className={`line-discovery-field line-view-enter ${hasResults ? '' : 'line-discovery-field-empty'} ${mapContent ? 'line-discovery-field-map' : ''}`}
       aria-label="Nearby anonymous letters"
     >
-      <div className="line-field-grid" aria-hidden="true" />
-      <div className="line-field-crosshair line-field-crosshair-top" aria-hidden="true" />
-      <div className="line-field-crosshair line-field-crosshair-bottom" aria-hidden="true" />
+      {mapContent ?? <div className="line-field-grid" aria-hidden="true" />}
+      {!mapContent && <div className="line-field-crosshair line-field-crosshair-top" aria-hidden="true" />}
+      {!mapContent && <div className="line-field-crosshair line-field-crosshair-bottom" aria-hidden="true" />}
       <div className="line-field-label line-mono" data-testid="text-discovery-location">NEARBY FIELD / WITHIN 100M</div>
       <div className="line-field-coordinates line-mono" aria-hidden="true">COORDINATES HIDDEN</div>
-      {hasResults && <div className="line-field-note line-serif">Somewhere<br />nearby.</div>}
-      <div className="line-field-scan-line line-scan" aria-hidden="true" />
+      {!mapContent && hasResults && <div className="line-field-note line-serif">Somewhere<br />nearby.</div>}
+      {!mapContent && <div className="line-field-scan-line line-scan" aria-hidden="true" />}
 
       {locationReady && (
         <button
@@ -189,7 +191,7 @@ export function DiscoveryField({
         </button>
       )}
 
-      {letters.map((letter) => (
+      {!mapContent && letters.map((letter) => (
         <button
           key={letter.id}
           type="button"

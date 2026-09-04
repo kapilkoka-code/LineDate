@@ -74,5 +74,11 @@
     "vite": "catalog:",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "@cesium/engine": "26.2.0",
+    "@cesium/widgets": "16.1.1",
+    "cesium": "^1.144.0",
+    "vite-plugin-cesium": "^1.2.23"
   }
 }

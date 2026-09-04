@@ -3623,6 +3623,32 @@ a:focus-visible {
   font-size: 0.44rem;
 }
 
+.line-find-calibration {
+  position: absolute;
+  z-index: 11;
+  top: max(174px, calc(env(safe-area-inset-top) + 148px));
+  right: 28px;
+  left: 28px;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 5px;
+  color: rgba(232, 223, 209, 0.8);
+  pointer-events: none;
+  text-align: center;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+}
+
+.line-find-calibration > span {
+  font-size: 0.47rem;
+}
+
+.line-find-calibration > small {
+  color: rgba(232, 223, 209, 0.58);
+  font-size: 0.66rem;
+  animation: line-find-calibration-hint 420ms ease 2.4s both;
+}
+
 .line-camera-crosshair {
   position: absolute;
   z-index: 8;
@@ -3848,10 +3874,12 @@ a:focus-visible {
   right: max(15px, env(safe-area-inset-right));
   bottom: max(65px, calc(env(safe-area-inset-bottom) + 48px));
   left: max(15px, env(safe-area-inset-left));
+  max-height: min(68vh, 560px);
   border: 1px solid rgba(232, 223, 209, 0.2);
   padding: 13px;
   background: rgba(18, 16, 14, 0.88);
   color: var(--line-paper);
+  overflow-y: auto;
   backdrop-filter: blur(16px);
 }
 
@@ -3887,6 +3915,48 @@ a:focus-visible {
   margin: 4px 0 0;
   color: var(--line-ash);
   font-size: 0.56rem;
+}
+
+.line-find-diagnostics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 10px 0;
+  border: 1px solid rgba(232, 223, 209, 0.12);
+  background: rgba(232, 223, 209, 0.08);
+}
+
+.line-find-diagnostics > div {
+  min-width: 0;
+  padding: 7px;
+  background: rgba(18, 16, 14, 0.92);
+}
+
+.line-find-diagnostics dt {
+  color: var(--line-ash);
+  font-family: var(--app-font-mono);
+  font-size: 0.38rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.line-find-diagnostics dd {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--line-paper);
+  font-family: var(--app-font-mono);
+  font-size: 0.44rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.line-find-diagnostics dd[data-confidence='high'] { color: #b9d9c1; }
+.line-find-diagnostics dd[data-confidence='medium'] { color: #e4cf99; }
+.line-find-diagnostics dd[data-confidence='low'] { color: var(--line-coral); }
+
+@keyframes line-find-calibration-hint {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes line-find-particles {
@@ -3934,5 +4004,9 @@ a:focus-visible {
   .line-cinematic-particles,
   .line-cinematic-line-pulse::before {
     display: none;
+  }
+
+  .line-find-calibration > small {
+    animation: none;
   }
 }

@@ -1,0 +1,592 @@
+LINE — STEP 15: REAL-WORLD SENSOR CALIBRATION & AR POSITIONING
+
+LINE Step 14 is complete and verified.
+
+Do NOT rebuild Step 14.
+
+Do NOT replace the existing camera, location, nearby-letter API, proximity enforcement, authentication, database, replies, reveal system, or letter reader.
+
+The purpose of Step 15 is to make the cinematic LINE behave reliably on real iPhone and Android devices.
+
+⸻
+
+GOAL
+
+Make the LINE directionally believable in the physical world.
+
+When a user turns their phone toward a nearby letter, the LINE should move into the correct part of the camera view.
+
+The priority is:
+
+ACCURACY → STABILITY → SMOOTHNESS → CINEMATIC QUALITY
+
+Do not add unnecessary visual features until directional accuracy is reliable.
+
+⸻
+
+1. SENSOR ARCHITECTURE
+
+Inspect the existing orientation implementation.
+
+Create or improve a dedicated sensor layer, for example:
+
+OrientationController
+SensorFusion
+CompassCalibration
+LocationAccuracyManager
+
+Do not duplicate existing sensor logic.
+
+Support where available:
+
+* DeviceOrientationEvent
+* DeviceMotionEvent
+* magnetometer/compass heading
+* GPS location
+* browser orientation permissions
+
+Handle iOS and Android differences explicitly.
+
+⸻
+
+2. PERMISSIONS
+
+Correctly handle motion/orientation permission requirements.
+
+Especially support iOS permission flows where device motion/orientation requires an explicit user gesture.
+
+The existing:
+
+START FINDING
+
+button can be used as the permission trigger.
+
+Never request motion permission unexpectedly after the user has already entered the experience.
+
+If permission is denied:
+
+FIND must still function using the best available fallback.
+
+⸻
+
+3. COMPASS CALIBRATION
+
+Compass readings can be noisy or inaccurate.
+
+Implement a lightweight calibration strategy.
+
+When sensor confidence is poor, show a subtle instruction:
+
+“Calibrating direction…”
+
+If necessary:
+
+“Move your phone slowly in a small circle.”
+
+Do NOT permanently display a compass UI.
+
+Once calibration is acceptable, automatically remove the message.
+
+Do not force users through a long calibration process.
+
+⸻
+
+4. HEADING NORMALIZATION
+
+Normalize heading values consistently:
+
+0°   = North
+90°  = East
+180° = South
+270° = West
+
+Correct for:
+
+* screen orientation
+* portrait/landscape changes
+* iOS compass conventions
+* Android compass conventions
+* device orientation differences
+
+The resulting heading must be expressed in the same coordinate system as the server-provided LINE bearing.
+
+⸻
+
+5. BEARING DIFFERENCE
+
+Calculate the shortest angular difference between:
+
+USER HEADING
+
+and
+
+LINE BEARING
+
+Example:
+
+User heading:
+350°
+
+LINE:
+10°
+
+The difference should be:
+
++20°
+
+not:
+
+-340°
+
+Use normalized angular calculations.
+
+The LINE should therefore move naturally across the screen when the user rotates.
+
+⸻
+
+6. SENSOR SMOOTHING
+
+Raw compass values are often unstable.
+
+Do NOT directly render raw sensor readings.
+
+Implement smoothing such as:
+
+* exponential smoothing
+* circular interpolation
+* low-pass filtering
+
+Avoid excessive smoothing that makes the LINE feel delayed.
+
+The result should feel:
+
+stable but responsive.
+
+The LINE should not:
+
+* jitter
+* snap
+* randomly jump
+* oscillate rapidly
+
+⸻
+
+7. SENSOR CONFIDENCE
+
+Create a confidence score for directional accuracy.
+
+Possible inputs:
+
+* compass stability
+* sensor availability
+* GPS accuracy
+* recent location update
+* device motion availability
+
+Conceptual states:
+
+HIGH CONFIDENCE
+MEDIUM CONFIDENCE
+LOW CONFIDENCE
+UNAVAILABLE
+
+When confidence is low:
+
+* reduce directional precision
+* avoid aggressive movement
+* optionally soften the LINE
+
+Do not pretend the direction is accurate when it is not.
+
+⸻
+
+8. GPS ACCURACY
+
+Inspect the existing location data.
+
+Use:
+
+accuracy
+timestamp
+latitude
+longitude
+
+where already available and appropriate.
+
+If GPS accuracy is poor, do not aggressively move the LINE based on tiny location changes.
+
+Example:
+
+If GPS accuracy is ±40m and the letter is 20m away, treat the directional result as uncertain.
+
+The UI may communicate:
+
+“Finding a clearer signal…”
+
+Do not expose technical GPS information to normal users.
+
+⸻
+
+9. LOCATION + ORIENTATION SEPARATION
+
+Keep these systems independent.
+
+LOCATION determines:
+
+* distance
+* letter availability
+* server proximity
+
+ORIENTATION determines:
+
+* where the LINE appears on screen
+
+Do not make the camera renderer depend on a new GPS request every frame.
+
+⸻
+
+10. LOCATION UPDATE STRATEGY
+
+Continue using the existing throttled location refresh.
+
+Do not request location every animation frame.
+
+The visual layer should continuously interpolate between location updates.
+
+Avoid:
+
+* excessive battery usage
+* excessive network requests
+* unnecessary GPS activation
+
+⸻
+
+11. DEVICE ROTATION
+
+Handle:
+
+portrait
+landscape
+rotation changes
+
+When the device rotates:
+
+* recalculate screen orientation
+* recalculate heading
+* preserve the correct LINE bearing
+
+Do not allow the LINE to jump to a random position during rotation.
+
+⸻
+
+12. CAMERA + SENSOR LIFECYCLE
+
+When FIND becomes active:
+
+start required sensors.
+
+When FIND is hidden/backgrounded:
+
+pause unnecessary sensor processing.
+
+When FIND becomes active again:
+
+resume sensors and refresh location.
+
+Avoid keeping camera/sensor resources active unnecessarily.
+
+Handle:
+
+* app backgrounding
+* screen locking
+* returning to app
+* browser tab visibility changes
+
+⸻
+
+13. MULTIPLE LINES
+
+Maintain Step 14’s existing prioritization.
+
+Maximum prominent LINE signals:
+
+3
+
+For each signal:
+
+letterId
+bearing
+distanceMeters
+isUnlocked
+confidence
+
+The primary LINE should remain visually dominant.
+
+⸻
+
+14. TOUCH FALLBACK
+
+Keep the existing touch/drag fallback.
+
+If orientation is unavailable:
+
+the user can drag horizontally to explore the directional field.
+
+Do not remove this functionality.
+
+⸻
+
+15. SENSOR DEBUG MODE
+
+Improve the existing development test mode.
+
+Development-only information may include:
+
+heading
+raw heading
+smoothed heading
+bearing
+angle difference
+GPS accuracy
+location age
+sensor availability
+confidence
+screen orientation
+
+Add a simple visual indicator:
+
+HIGH
+MEDIUM
+LOW
+
+Never show these values in production.
+
+⸻
+
+16. TEST SIMULATION
+
+Keep the existing simulated:
+
+Distances:
+
+100m
+50m
+20m
+10m
+5m
+
+Bearings:
+
+0°
+90°
+180°
+270°
+
+Add simulated user headings:
+
+0°
+90°
+180°
+270°
+
+Verify that the LINE appears correctly for every combination.
+
+Also test wrap-around:
+
+user = 350°
+LINE = 10°
+
+and:
+
+user = 10°
+LINE = 350°
+
+⸻
+
+17. REAL DEVICE TESTING
+
+Create a simple internal test procedure for:
+
+iPhone
+
+Test:
+
+* Safari
+* camera
+* GPS
+* motion permission
+* compass heading
+* device rotation
+* haptics
+
+Android
+
+Test:
+
+* Chrome
+* camera
+* GPS
+* orientation
+* compass
+* device rotation
+* haptics
+
+The application should gracefully degrade if a device does not expose a required sensor.
+
+⸻
+
+18. REAL-WORLD TEST SCENARIO
+
+Create a practical validation procedure.
+
+Place a test letter at a known location.
+
+Stand approximately:
+
+50m
+30m
+20m
+10m
+5m
+
+from the location.
+
+Face:
+
+North
+East
+South
+West
+
+and verify the LINE’s position.
+
+Then physically rotate 360°.
+
+Expected result:
+
+The LINE should smoothly travel across the screen and return to its original position after a full rotation.
+
+⸻
+
+19. IMPORTANT PRIVACY RULE
+
+Do not weaken any existing privacy protection.
+
+The frontend must not receive unnecessary:
+
+* exact writer coordinates
+* writer identity
+* private profile information
+
+The server remains authoritative for:
+
+* distance
+* letter availability
+* proximity unlock
+* authorization
+
+Sensor calculations must never become an authorization mechanism.
+
+⸻
+
+20. PERFORMANCE
+
+Maintain Step 14’s mobile performance.
+
+Target:
+
+60 FPS where possible.
+
+Use:
+
+* requestAnimationFrame
+* efficient event listeners
+* smoothing without excessive computation
+* GPU-friendly transforms
+* throttled location updates
+
+Do not run expensive calculations unnecessarily.
+
+⸻
+
+21. DO NOT CHANGE THE VISUAL LANGUAGE
+
+Keep the existing Step 14 LINE aesthetic.
+
+Do not turn it into:
+
+* a compass arrow
+* navigation UI
+* map marker
+* gaming HUD
+* giant directional indicator
+
+The LINE remains:
+
+two parallel beams of light existing in the world.
+
+Only improve their physical positioning and stability.
+
+⸻
+
+22. ACCEPTANCE CRITERIA
+
+Step 15 is complete when:
+
+[ ] iOS motion/orientation permissions work correctly.
+
+[ ] Android orientation works correctly where supported.
+
+[ ] Heading is normalized consistently.
+
+[ ] Screen orientation is handled correctly.
+
+[ ] Bearing calculations use shortest angular difference.
+
+[ ] Raw sensor jitter is smoothed.
+
+[ ] LINE movement feels responsive.
+
+[ ] Poor sensor confidence is detected.
+
+[ ] Poor GPS accuracy is handled gracefully.
+
+[ ] Location and orientation remain separate systems.
+
+[ ] Background/foreground lifecycle works.
+
+[ ] Touch fallback still works.
+
+[ ] Multiple LINE signals still work.
+
+[ ] Development sensor diagnostics work.
+
+[ ] Existing simulation works.
+
+[ ] Real-device testing procedure is documented.
+
+[ ] Server-side proximity security remains unchanged.
+
+[ ] Existing Step 14 features remain intact.
+
+[ ] No production debug information is visible.
+
+[ ] No major console errors.
+
+⸻
+
+FINAL PRINCIPLE
+
+Do not chase “more AR” yet.
+
+First make the illusion believable.
+
+When the user turns their phone:
+
+the LINE should be where the letter actually is.
+
+The user should instinctively trust:
+
+“If I turn toward that light, I’m getting closer.”
+
+Once this is reliable on real devices, the next stage can introduce true spatial/world anchoring, making the LINE feel physically embedded in the environment rather than simply aligned to a compass.

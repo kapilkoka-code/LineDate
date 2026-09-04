@@ -12,14 +12,16 @@ import { LetterReader } from '@/components/line/DiscoveryField';
 import { LineMark } from '@/components/line/LineMark';
 import { ReplyComposer } from '@/components/line/ReplyComposer';
 import type { LocationState } from '@/hooks/useLocation';
+import {
+  normalizeDegrees,
+  signedAngleDifference,
+  useOrientationController,
+  type SensorConfidence,
+} from '@/hooks/useOrientationController';
 import type { NearbyLetter } from '@/services/discovery';
 import { playFindSound } from '@/services/findSound';
 
 type CameraState = 'prompt' | 'requesting' | 'granted' | 'denied' | 'simulated';
-type OrientationState = 'prompt' | 'granted' | 'denied' | 'unsupported';
-type DeviceOrientationConstructor = typeof DeviceOrientationEvent & {
-  requestPermission?: () => Promise<'granted' | 'denied'>;
-};
 
 type CameraViewProps = {
   location: LocationState;
@@ -42,14 +44,7 @@ const DEVELOPMENT_MODE = import.meta.env.DEV;
 const FIND_REFRESH_INTERVAL_MS = 15_000;
 const SIMULATED_DISTANCES = [100, 50, 20, 10, 5] as const;
 const SIMULATED_BEARINGS = [0, 90, 180, 270] as const;
-
-function normalizeDegrees(value: number) {
-  return ((value % 360) + 360) % 360;
-}
-
-function signedAngleDifference(target: number, current: number) {
-  return ((target - current + 540) % 360) - 180;
-}
+const SIMULATED_HEADINGS = [0, 90, 180, 270] as const;
 
 function signalIntensity(distanceMeters: number, isUnlocked: boolean) {
   if (isUnlocked) return 1;
@@ -77,16 +72,19 @@ export function CameraView({
   onNavigateHome,
 }: CameraViewProps) {
   const [cameraState, setCameraState] = useState<CameraState>('prompt');
-  const [orientationState, setOrientationState] = useState<OrientationState>('prompt');
-  const [yaw, setYaw] = useState(0);
+  const [manualHeading, setManualHeading] = useState(0);
+  const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
   const [selectedLetterId, setSelectedLetterId] = useState<string | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
   const [simulatedDistance, setSimulatedDistance] = useState<(typeof SIMULATED_DISTANCES)[number]>(50);
-  const [simulatedBearing, setSimulatedBearing] = useState<(typeof SIMULATED_BEARINGS)[number]>(0);
+  const [simulatedBearing, setSimulatedBearing] = useState<number>(0);
+  const [simulatedHeading, setSimulatedHeading] = useState<number>(0);
   const [showTestControls, setShowTestControls] = useState(false);
   const [pulseLetterId, setPulseLetterId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraRequestRef = useRef(0);
+  const mountedRef = useRef(true);
   const dragRef = useRef<{ pointerId: number; startX: number; startYaw: number } | null>(null);
   const lastUnlockedIdRef = useRef<string | null>(null);
   const lastProximityLevelRef = useRef(0);
@@ -130,12 +128,69 @@ export function CameraView({
   }, [cameraState, prioritizedLetters, simulatedBearing, simulatedDistance]);
 
   const primarySignal = visualSignals[0] ?? null;
+  const cameraViewVisible = pageVisible && selectedLetter === null;
+  const orientation = useOrientationController({
+    active: cameraState === 'granted' && cameraViewVisible,
+    gpsAccuracy: location.location?.accuracy ?? null,
+    locationTimestamp: location.location?.timestamp ?? null,
+    distanceMeters: primarySignal?.distanceMeters ?? null,
+  });
+  const sensorHeadingAvailable = orientation.permission === 'granted'
+    && orientation.heading !== null
+    && orientation.diagnostics.orientationAvailable;
+  const sensorHeading = orientation.heading ?? manualHeading;
+  const visualHeading = cameraState === 'simulated'
+    ? simulatedHeading
+    : sensorHeadingAvailable
+      ? sensorHeading
+      : manualHeading;
+  const directionalConfidence: SensorConfidence = cameraState === 'simulated'
+    ? 'high'
+    : sensorHeadingAvailable
+      ? orientation.confidence
+      : 'unavailable';
 
-  const stopCamera = useCallback(() => {
+  const releaseCurrentStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
   }, []);
+
+  const stopCamera = useCallback(() => {
+    cameraRequestRef.current += 1;
+    releaseCurrentStream();
+  }, [releaseCurrentStream]);
+
+  const acquireCamera = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) return 'denied' as const;
+    const requestId = cameraRequestRef.current + 1;
+    cameraRequestRef.current = requestId;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+      if (
+        !mountedRef.current
+        || cameraRequestRef.current !== requestId
+        || document.visibilityState !== 'visible'
+      ) {
+        stream.getTracks().forEach((track) => track.stop());
+        return 'cancelled' as const;
+      }
+
+      releaseCurrentStream();
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        void videoRef.current.play().catch(() => undefined);
+      }
+      return 'granted' as const;
+    } catch {
+      return cameraRequestRef.current === requestId ? 'denied' as const : 'cancelled' as const;
+    }
+  }, [releaseCurrentStream]);
 
   const attachVideo = useCallback((node: HTMLVideoElement | null) => {
     videoRef.current = node;
@@ -144,83 +199,69 @@ export function CameraView({
     void node.play().catch(() => undefined);
   }, []);
 
-  const requestOrientation = useCallback(async () => {
-    if (!('DeviceOrientationEvent' in window)) {
-      setOrientationState('unsupported');
-      return;
-    }
-
-    const OrientationEvent = window.DeviceOrientationEvent as DeviceOrientationConstructor;
-    if (typeof OrientationEvent.requestPermission === 'function') {
-      try {
-        const permission = await OrientationEvent.requestPermission();
-        setOrientationState(permission === 'granted' ? 'granted' : 'denied');
-      } catch {
-        setOrientationState('denied');
-      }
-      return;
-    }
-
-    setOrientationState('granted');
-  }, []);
-
   const startExperience = useCallback(async () => {
     setCameraState('requesting');
     if (!location.location) onRefresh();
-    void requestOrientation();
+    const orientationRequest = orientation.requestPermission();
     playFindSound('startup');
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraState('denied');
-      return;
-    }
-
-    try {
-      stopCamera();
-      streamRef.current = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      });
-      setCameraState('granted');
-    } catch {
-      stopCamera();
-      setCameraState('denied');
-    }
-  }, [location.location, onRefresh, requestOrientation, stopCamera]);
-
-  useEffect(() => stopCamera, [stopCamera]);
+    stopCamera();
+    const [cameraResult] = await Promise.all([acquireCamera(), orientationRequest]);
+    if (!mountedRef.current) return;
+    if (cameraResult === 'granted') setCameraState('granted');
+    else if (cameraResult === 'denied') setCameraState('denied');
+    else setCameraState('prompt');
+  }, [acquireCamera, location.location, onRefresh, orientation, stopCamera]);
 
   useEffect(() => {
-    if (orientationState !== 'granted') return;
-    let animationFrame: number | null = null;
-    let latestHeading = 0;
-    let receivedOrientation = false;
-    const handleOrientation = (event: DeviceOrientationEvent) => {
-      receivedOrientation = true;
-      const compassHeading = (event as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading;
-      latestHeading = compassHeading ?? normalizeDegrees(360 - (event.alpha ?? 0));
-      if (animationFrame !== null) return;
-      animationFrame = window.requestAnimationFrame(() => {
-        setYaw(latestHeading);
-        animationFrame = null;
-      });
-    };
-    const fallbackTimeout = window.setTimeout(() => {
-      if (!receivedOrientation) setOrientationState('unsupported');
-    }, 1600);
-    window.addEventListener('deviceorientation', handleOrientation);
+    mountedRef.current = true;
     return () => {
-      window.removeEventListener('deviceorientation', handleOrientation);
-      window.clearTimeout(fallbackTimeout);
-      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+      mountedRef.current = false;
+      stopCamera();
     };
-  }, [orientationState]);
+  }, [stopCamera]);
+
+  useEffect(() => {
+    if (cameraState !== 'granted' || !cameraViewVisible) return;
+    const interval = window.setInterval(onRefresh, FIND_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [cameraState, cameraViewVisible, onRefresh]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setPageVisible(document.visibilityState === 'visible');
+    };
+    const handlePageHide = () => {
+      setPageVisible(false);
+      stopCamera();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [stopCamera]);
 
   useEffect(() => {
     if (cameraState !== 'granted') return;
-    const interval = window.setInterval(onRefresh, FIND_REFRESH_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [cameraState, onRefresh]);
+    if (!cameraViewVisible) {
+      stopCamera();
+      return;
+    }
+    if (streamRef.current) return;
+
+    let cancelled = false;
+    onRefresh();
+    void acquireCamera().then((result) => {
+      if (!cancelled && result === 'denied') setCameraState('denied');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [acquireCamera, cameraState, cameraViewVisible, onRefresh, stopCamera]);
 
   useEffect(() => {
     if (selectedLetterId && !selectedLetter) {
@@ -258,16 +299,18 @@ export function CameraView({
   }, [primarySignal]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (orientationState === 'granted' && cameraState !== 'simulated') return;
+    if (sensorHeadingAvailable && cameraState !== 'simulated') return;
     if ((event.target as HTMLElement).closest('button')) return;
-    dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startYaw: yaw };
+    dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startYaw: visualHeading };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    setYaw(normalizeDegrees(drag.startYaw - (event.clientX - drag.startX) * 0.45));
+    const nextHeading = normalizeDegrees(drag.startYaw - (event.clientX - drag.startX) * 0.45);
+    if (cameraState === 'simulated') setSimulatedHeading(nextHeading);
+    else setManualHeading(nextHeading);
   };
 
   const handlePointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -336,7 +379,6 @@ export function CameraView({
               className="line-btn-secondary line-mono"
               onClick={() => {
                 setCameraState('simulated');
-                setOrientationState('unsupported');
               }}
               data-testid="button-start-find-test-mode"
             >
@@ -374,7 +416,6 @@ export function CameraView({
               className="line-btn-secondary line-mono"
               onClick={() => {
                 setCameraState('simulated');
-                setOrientationState('unsupported');
               }}
             >
               Development test mode
@@ -386,6 +427,15 @@ export function CameraView({
   }
 
   const locationUnavailable = location.status !== 'active' || !location.location;
+  const gpsDirectionUncertain = Boolean(
+    primarySignal
+    && location.location
+    && location.location.accuracy > Math.max(35, primarySignal.distanceMeters * 1.25),
+  );
+  const sensorNeedsCalibration = cameraState === 'granted'
+    && sensorHeadingAvailable
+    && directionalConfidence === 'low'
+    && !gpsDirectionUncertain;
   const primaryStatus = locationUnavailable
     ? ['LOCATION NEEDED', 'Enable location to discover nearby letters.']
     : networkError
@@ -413,7 +463,7 @@ export function CameraView({
         <video ref={attachVideo} autoPlay playsInline muted className="line-camera-video" aria-label="Live rear camera view" />
       ) : (
         <div className="line-camera-simulated-bg" aria-label="Development camera simulation">
-          <div className="line-simulated-grid" style={{ backgroundPositionX: `${-yaw * 4}px` }} />
+          <div className="line-simulated-grid" style={{ backgroundPositionX: `${-visualHeading * 4}px` }} />
         </div>
       )}
       <div className="line-camera-vignette" aria-hidden="true" />
@@ -423,7 +473,7 @@ export function CameraView({
           <LineMark compact light />
           <div className="line-camera-status line-mono">
             <span>{cameraState === 'simulated' ? 'TEST VIEW' : 'LIVE FIND'}</span>
-            <span>{orientationState === 'granted' ? 'ORIENTATION ACTIVE' : 'DRAG TO LOOK AROUND'}</span>
+            <span>{sensorHeadingAvailable ? 'ORIENTATION ACTIVE' : 'DRAG TO LOOK AROUND'}</span>
           </div>
         </header>
 
@@ -433,11 +483,22 @@ export function CameraView({
           {primarySignal && <small className="line-mono">{Math.max(1, Math.round(primarySignal.distanceMeters))} m away</small>}
         </div>
 
+        {(gpsDirectionUncertain || sensorNeedsCalibration) && (
+          <div className="line-find-calibration" role="status" data-testid="state-find-calibration">
+            <span className="line-mono">
+              {gpsDirectionUncertain ? 'Finding a clearer signal…' : 'Calibrating direction…'}
+            </span>
+            {sensorNeedsCalibration && <small>Move your phone slowly in a small circle.</small>}
+          </div>
+        )}
+
         {visualSignals.map((signal, index) => {
-          const difference = signedAngleDifference(signal.bearingDegrees, yaw);
+          const difference = signedAngleDifference(signal.bearingDegrees, visualHeading);
           const edgeVisibility = Math.max(0, 1 - Math.max(0, Math.abs(difference) - 38) / 18);
           const intensity = signalIntensity(signal.distanceMeters, signal.isUnlocked);
           const secondary = index > 0;
+          const confidenceMovement = directionalConfidence === 'low' ? 0.62 : directionalConfidence === 'medium' ? 0.86 : 1;
+          const confidenceOpacity = directionalConfidence === 'low' ? 0.64 : directionalConfidence === 'medium' ? 0.84 : 1;
           return (
             <CinematicLine
               key={signal.id}
@@ -446,9 +507,9 @@ export function CameraView({
               bearing={signal.bearingDegrees}
               isUnlocked={signal.isUnlocked}
               intensity={intensity}
-              opacity={edgeVisibility * intensity * (secondary ? 0.42 : 1)}
+              opacity={edgeVisibility * intensity * confidenceOpacity * (secondary ? 0.42 : 1)}
               scale={(0.78 + intensity * 0.3) * (secondary ? 0.82 : 1)}
-              horizontalPosition={50 + difference * 1.05}
+              horizontalPosition={50 + difference * 1.05 * confidenceMovement}
               secondary={secondary}
               pulse={signal.id === pulseLetterId}
               onOpen={signal.source?.isUnlocked ? () => setSelectedLetterId(signal.source!.id) : undefined}
@@ -506,6 +567,51 @@ export function CameraView({
                 </button>
               ))}
             </div>
+            <div>
+              <span className="line-mono">User heading</span>
+              {SIMULATED_HEADINGS.map((heading) => (
+                <button
+                  type="button"
+                  key={heading}
+                  onClick={() => setSimulatedHeading(heading)}
+                  aria-pressed={Math.round(simulatedHeading) === heading}
+                >
+                  {heading}°
+                </button>
+              ))}
+            </div>
+            <div>
+              <span className="line-mono">Wrap-around</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSimulatedHeading(350);
+                  setSimulatedBearing(10);
+                }}
+                aria-pressed={Math.round(simulatedHeading) === 350 && simulatedBearing === 10}
+              >
+                350° → 10°
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSimulatedHeading(10);
+                  setSimulatedBearing(350);
+                }}
+                aria-pressed={Math.round(simulatedHeading) === 10 && simulatedBearing === 350}
+              >
+                10° → 350°
+              </button>
+            </div>
+            <dl className="line-find-diagnostics" data-testid="find-sensor-diagnostics">
+              <div><dt>Confidence</dt><dd data-confidence={directionalConfidence}>{directionalConfidence.toUpperCase()}</dd></div>
+              <div><dt>Heading</dt><dd>{Math.round(visualHeading)}°</dd></div>
+              <div><dt>Raw / smooth</dt><dd>{cameraState === 'simulated' ? `${Math.round(simulatedHeading)}° / ${Math.round(simulatedHeading)}°` : `${orientation.diagnostics.rawHeading === null ? '—' : `${Math.round(orientation.diagnostics.rawHeading)}°`} / ${orientation.heading === null ? '—' : `${Math.round(orientation.heading)}°`}`}</dd></div>
+              <div><dt>Bearing / delta</dt><dd>{simulatedBearing}° / {Math.round(signedAngleDifference(simulatedBearing, visualHeading))}°</dd></div>
+              <div><dt>GPS / age</dt><dd>{location.location ? `±${Math.round(location.location.accuracy)}m / ${Math.round((orientation.locationAgeMs ?? 0) / 1000)}s` : 'Unavailable'}</dd></div>
+              <div><dt>Sensors</dt><dd>{orientation.diagnostics.orientationAvailable ? 'Orientation' : 'Touch'} · {orientation.diagnostics.motionAvailable ? 'Motion' : 'No motion'}</dd></div>
+              <div><dt>Screen</dt><dd>{orientation.diagnostics.screenOrientation}°</dd></div>
+            </dl>
             <p>Visual simulation only. Server access remains locked.</p>
           </aside>
         )}

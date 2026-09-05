@@ -63,7 +63,11 @@ export default defineConfig({
   },
   root: path.resolve(import.meta.dirname),
   build: {
-    outDir: path.resolve(import.meta.dirname, 'dist/public'),
+    // Keep this relative to `root`. vite-plugin-cesium joins root and outDir
+    // when it copies Cesium.js, Workers, Assets, and Widgets. An absolute
+    // outDir makes the plugin duplicate the full path inside the artifact,
+    // leaving the published directory without the Cesium runtime.
+    outDir: 'dist/public',
     emptyOutDir: true,
   },
   server: {

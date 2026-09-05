@@ -1,4 +1,4 @@
-- [Cesium pnpm resolution](cesium-pnpm-resolution.md) — pin Cesium internals and verify nested symlinks so Vite dev optimization cannot resolve incompatible patches.
+- [Cesium build and pnpm resolution](cesium-pnpm-resolution.md) — pin Cesium internals and keep plugin output paths relative so dev and published runtimes stay complete.
 - [Camera drag controls](camera-drag-controls.md) — camera drag surfaces must not capture pointer events that begin on nested controls.
 - [Earth-referenced headings](earth-referenced-headings.md) — physical bearings may use only verified absolute compass sources; relative alpha must fall back to touch.
 - [Spatial signal visibility](spatial-signal-visibility.md) — directional beam fade and edge atmosphere need independent opacity; motion must never override either curve.

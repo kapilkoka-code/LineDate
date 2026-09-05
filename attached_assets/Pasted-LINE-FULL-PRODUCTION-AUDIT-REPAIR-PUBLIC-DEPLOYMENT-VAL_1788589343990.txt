@@ -1,0 +1,943 @@
+LINE — FULL PRODUCTION AUDIT, REPAIR & PUBLIC DEPLOYMENT VALIDATION
+
+IMPORTANT — THIS IS A REPAIR AND VALIDATION PASS
+
+The LINE application is now publicly deployed.
+
+The previous Step 20 implementation report claimed the software architecture and browser validation were complete, but the public application is not behaving as expected.
+
+I am currently seeing problems including:
+
+* Camera/FIND does not appear to be working correctly.
+* The 3D / God’s Eye View map does not appear to be working correctly.
+* Other functionality may also be broken in the public deployment.
+
+Do NOT assume that because the previous implementation report says something is complete, it is actually working in the deployed application.
+
+Your task now is to perform a full end-to-end production audit of the existing LINE application and FIX EVERYTHING THAT IS NOT WORKING.
+
+This is NOT a feature-development step.
+
+Do NOT add new product features unless they are necessary to repair an existing feature.
+
+Do NOT redesign the product.
+
+Do NOT replace working architecture unnecessarily.
+
+The priority is:
+
+MAKE THE PUBLIC LINE APP ACTUALLY WORK.
+
+⸻
+
+1. START WITH A COMPLETE SYSTEM AUDIT
+
+Before modifying code, inspect the entire current repository and deployed configuration.
+
+Understand:
+
+* Frontend architecture
+* API architecture
+* Database
+* OpenAPI contracts
+* Generated API clients
+* Authentication
+* Location services
+* Camera services
+* Orientation/compass services
+* WebXR
+* Cesium/God’s Eye View
+* FIND
+* AR Drop
+* Letter Reader
+* Replies
+* Reveal
+* My Letters
+* Discover
+* Profile
+* Letter lifecycle
+* Privacy/security
+* Deployment configuration
+* Environment variables
+* Production build configuration
+* Replit workflows
+* Public URL configuration
+
+Do not rely on previous completion reports.
+
+Inspect the actual current implementation.
+
+⸻
+
+2. TEST THE PUBLIC DEPLOYMENT FIRST
+
+Treat the public deployment as the primary source of truth.
+
+Open the actual public LINE application and test it as a real user.
+
+Do NOT only test localhost.
+
+Verify:
+
+* Application loads
+* Authentication works
+* Session persists
+* API requests reach the production API
+* Database requests succeed
+* Location permission works
+* Camera permission works
+* Orientation permission works
+* FIND opens
+* Camera actually displays
+* God’s Eye View loads
+* Cesium/WebGL initializes where supported
+* Fallback appears where unsupported
+* Letter creation works
+* AR Drop opens
+* Drop authorization works
+* Drop confirmation works
+* Letter becomes active
+* My Letters works
+* Discover works
+* FIND can discover an active signal
+* Proximity unlock works
+* Letter View opens
+* Reply works
+* Reveal logic works
+* Navigation works
+* No production-only failure exists
+
+Record every failure.
+
+⸻
+
+3. CAMERA/FIND — PRIORITY #1
+
+The camera currently appears not to be working.
+
+Investigate this deeply.
+
+Do not simply assume this is a permission issue.
+
+Check the entire camera chain:
+
+Browser
+
+Check:
+
+* navigator.mediaDevices
+* getUserMedia
+* secure context requirements
+* HTTPS
+* camera permission state
+* browser compatibility
+* iOS Safari behavior
+* Android Chrome behavior
+
+Stream
+
+Check:
+
+* Whether getUserMedia() is actually called
+* Whether the promise resolves
+* Whether it rejects
+* Exact error name
+* Whether video tracks are returned
+* Whether tracks are immediately stopped
+* Whether srcObject is assigned
+* Whether video.play() succeeds
+* Whether the video element is actually visible
+* Whether CSS is hiding the camera
+* Whether an overlay is covering it
+* Whether lifecycle cleanup stops the stream prematurely
+
+React lifecycle
+
+Look for:
+
+* Race conditions
+* Component unmount
+* State transitions
+* Stale refs
+* Cleanup firing too early
+* Permission requests happening outside user gestures
+* Camera initialization occurring after another lifecycle transition
+
+iOS
+
+Pay particular attention to:
+
+* playsInline
+* muted
+* autoPlay
+* user gesture requirements
+* Safari camera permission behavior
+* orientation permission
+* page visibility
+* camera stream lifecycle
+
+Production
+
+Compare development and production behavior.
+
+Check whether:
+
+* Vite bundling changes anything
+* Environment variables affect camera initialization
+* CSP/security headers interfere
+* HTTPS is actually active
+* iframe/embed restrictions exist
+* Replit deployment headers interfere
+
+Required result
+
+The FIND camera must actually display the rear/environment-facing camera on supported devices.
+
+If camera access is genuinely unavailable, the application must display a clear and accurate fallback.
+
+Never show a blank black screen while implying FIND is active.
+
+⸻
+
+4. GOD’S EYE VIEW / 3D MAP — PRIORITY #2
+
+The 3D map is also apparently not working.
+
+Audit the entire Cesium implementation.
+
+Check:
+
+* Cesium initialization
+* WebGL2 detection
+* Cesium viewer construction
+* Cesium CSS
+* Cesium JS loading
+* Worker loading
+* Asset loading
+* Ion configuration
+* Terrain configuration
+* imagery configuration
+* camera initialization
+* render loop
+* canvas dimensions
+* container dimensions
+* React lifecycle
+* resize handling
+* cleanup
+* WebGL context errors
+* shader errors
+* runtime exceptions
+
+Pay particular attention to the previous iPad issue:
+
+requestWebgl1: true
+
+This was changed because Cesium’s shaders require WebGL2.
+
+Verify that the current public build is actually using the corrected configuration.
+
+Do not reintroduce WebGL1.
+
+⸻
+
+5. CESIUM / WEBGL FAILURE DIAGNOSTICS
+
+If Cesium fails, determine the exact reason.
+
+Check the browser console for:
+
+* WebGL errors
+* shader compilation errors
+* unsupported extensions
+* worker failures
+* CORS failures
+* failed asset requests
+* failed module loading
+* Cesium initialization exceptions
+
+Check network requests for:
+
+* Cesium assets
+* workers
+* imagery
+* terrain
+* JavaScript chunks
+* CSS
+* API requests
+
+Do not simply catch the error and show:
+
+3D MAP UNAVAILABLE
+
+unless you have identified why it failed.
+
+The fallback is useful only after the root cause has been investigated.
+
+⸻
+
+6. PUBLIC DEPLOYMENT CONFIGURATION
+
+Because the LINE application is now public, audit all production configuration.
+
+Check:
+
+* Frontend API base URL
+* API origin
+* CORS
+* cookies
+* SameSite behavior
+* Secure cookies
+* authentication callback URLs
+* Replit Auth configuration
+* environment variables
+* production secrets
+* allowed origins
+* HTTPS
+* WebSocket configuration if used
+* static asset paths
+* API prefix
+* Cesium asset paths
+* generated API client base URL
+
+A feature working in Replit preview but failing publicly is unacceptable.
+
+Identify every difference between:
+
+* Development
+* Preview
+* Published/public deployment
+
+and determine whether that difference causes failures.
+
+⸻
+
+7. CHECK API CONNECTIVITY
+
+Open the production application and inspect every API request.
+
+Verify:
+
+* HTTP status
+* request URL
+* request method
+* authentication
+* cookies/session
+* response payload
+* CORS
+* server errors
+* timeout behavior
+
+Check especially:
+
+* /api/healthz
+* authentication endpoints
+* discovery endpoints
+* signal endpoints
+* letter endpoints
+* drop authorization
+* drop confirmation
+* reply endpoints
+* reveal endpoints
+
+Do not modify API contracts unnecessarily.
+
+If the frontend is calling the wrong production path, fix the frontend/API configuration.
+
+If the API is returning an error, fix the actual server issue.
+
+⸻
+
+8. AUTHENTICATION
+
+Test the public application from a completely fresh browser/session.
+
+Verify:
+
+1. User opens public URL.
+2. Authentication starts.
+3. Authentication completes.
+4. User returns to LINE.
+5. Session is recognized by API.
+6. Authenticated APIs work.
+7. Refresh does not destroy the session.
+8. Opening FIND/Discover/My Letters does not unexpectedly log the user out.
+
+Check both:
+
+* first login
+* returning user
+
+Do not create a second authentication system.
+
+⸻
+
+9. LOCATION
+
+Test real browser geolocation.
+
+Verify:
+
+* Permission request
+* High accuracy
+* Freshness
+* Accuracy
+* Timestamp
+* Location hook
+* API submission
+* Server validation
+
+Check whether production HTTPS and browser permission policies affect geolocation.
+
+Do not weaken:
+
+* 25m accuracy requirement
+* freshness requirement
+* server-side validation
+* plausible movement validation
+* proximity authorization
+
+The server remains authoritative.
+
+⸻
+
+10. FIND END-TO-END
+
+Once camera and location are repaired, test:
+
+FIND
+
+1. Open FIND.
+2. Grant camera.
+3. Grant orientation if available.
+4. Obtain location.
+5. Receive nearby signals.
+6. Calculate direction.
+7. Display twin beams.
+8. Rotate device.
+9. Verify beam movement.
+10. Walk closer.
+11. Verify visual intensity changes.
+12. Verify audio behavior.
+13. Reach proximity threshold.
+14. Verify server unlock.
+15. Open the existing Letter View.
+
+The visual must remain:
+
+* Two powerful parallel vertical beams
+* Atmospheric
+* Cinematic
+* Physical
+* Luminous
+
+Do NOT replace it with:
+
+* arrows
+* pins
+* route lines
+* waypoints
+* floating conventional markers
+
+⸻
+
+11. GOD’S EYE VIEW END-TO-END
+
+Verify:
+
+1. God’s Eye View opens.
+2. Cesium initializes.
+3. Globe/world renders.
+4. User location is handled correctly.
+5. Spatial signal field loads.
+6. Signals are represented using LINE’s visual language.
+7. No exact private letter coordinates are unnecessarily exposed.
+8. FIND THIS LINE works.
+9. Handoff to FIND works.
+10. FIND can then locate the selected signal.
+
+If there are no active letters, verify that the empty state is intentional and correct.
+
+Do NOT fabricate persistent production letters simply to make the map look populated.
+
+⸻
+
+12. AR DROP END-TO-END
+
+Test the complete physical placement flow again.
+
+Verify:
+
+WRITE
+→ PREVIEW
+→ DROP THIS LINE
+→ OPEN CAMERA TO PLACE
+→ LOCATION
+→ AUTHORIZE
+→ POSITION SIGNAL
+→ LEAVE IT HERE
+→ CONFIRM
+→ ACTIVE
+→ WALK AWAY
+→ RETURN TO DISCOVER
+
+Check that:
+
+* Camera actually works.
+* Placement authorization works.
+* Location is fresh.
+* Capability is issued.
+* Twin-beam preview appears.
+* Dragging works.
+* LEAVE IT HERE works.
+* Confirmation works.
+* Active state appears.
+* Walk-away distance changes.
+* Camera/XR cleanup works.
+
+Do not weaken the existing security architecture.
+
+⸻
+
+13. TWO-DEVICE / TWO-USER TEST
+
+Where possible, test the real product loop using two authenticated accounts/devices.
+
+User A
+
+Writes and physically drops a letter.
+
+User B
+
+Opens Discover/God’s Eye View.
+
+User B
+
+Finds the signal.
+
+User B
+
+Opens FIND.
+
+User B
+
+Physically approaches.
+
+User B
+
+Unlocks.
+
+User B
+
+Reads.
+
+User B
+
+Replies.
+
+User A
+
+Receives reply.
+
+User A
+
+Can reveal identity according to existing rules.
+
+This is the most important real product validation.
+
+⸻
+
+14. MOBILE DEVICE PRIORITY
+
+The product is mobile-first.
+
+Prioritize actual:
+
+* iPhone/iPad Safari
+* Android Chrome
+
+Do not treat desktop Chrome as proof that mobile camera/AR works.
+
+Explicitly identify behavior for:
+
+Android Chrome + ARCore/WebXR
+
+Expected:
+
+* Camera
+* WebXR where supported
+* World tracking where supported
+* Sensor fallback where necessary
+
+iOS Safari
+
+Expected:
+
+* Camera
+* Motion/orientation permission
+* Sensor/manual spatial placement
+* No false claim of persistent world anchoring
+
+Do not claim capabilities that the browser does not provide.
+
+⸻
+
+15. CHECK THE ENTIRE UI FOR BROKEN INTERACTIONS
+
+Audit every major screen.
+
+Check:
+
+* Buttons
+* Pointer events
+* Touch events
+* Scroll behavior
+* overlays
+* z-index
+* fixed positioning
+* safe-area handling
+* viewport height
+* iOS Safari viewport behavior
+* keyboard behavior
+* modal dismissal
+* back navigation
+* loading states
+* error states
+* retry buttons
+* disabled states
+
+Pay special attention to invisible overlays intercepting touch events.
+
+The previous placement implementation already had a pointer-event bug, so proactively search for similar issues elsewhere.
+
+⸻
+
+16. CHECK CONSOLE AND NETWORK ERRORS
+
+Perform a production browser audit.
+
+The target is:
+
+Console
+
+No:
+
+* uncaught exceptions
+* React crashes
+* failed module imports
+* WebGL exceptions
+* Cesium exceptions
+* camera exceptions left unhandled
+* API exceptions
+* hydration/runtime errors
+
+Network
+
+No unexplained:
+
+* 404
+* 401
+* 403
+* 409
+* 500
+* failed chunks
+* failed Cesium assets
+* failed API requests
+
+If errors occur, trace them to the source rather than suppressing them.
+
+⸻
+
+17. CHECK BUILD OUTPUT
+
+Run:
+
+* TypeScript typecheck
+* Production build
+* API build
+* OpenAPI generation/validation if applicable
+* Database schema validation
+* git diff --check
+
+Then inspect the production bundle.
+
+Verify that:
+
+* Development diagnostics are absent.
+* Simulation controls are absent.
+* Test camera controls are absent.
+* Test GPS controls are absent.
+* Temporary authentication overrides are absent.
+* Debug overlays are absent.
+* No development URLs remain.
+* No localhost API URLs remain.
+* No temporary Replit test issuer remains.
+
+⸻
+
+18. SECURITY REGRESSION CHECK
+
+Do NOT sacrifice security while repairing functionality.
+
+Confirm again:
+
+* No public direct letter creation
+* No migration bypass
+* Drop authorization required
+* Drop confirmation required
+* User-bound capability
+* Expiring capability
+* Immutable letter text
+* Stable letter ID
+* Fresh location
+* Accuracy requirement
+* Plausible movement
+* Server-side proximity
+* Server-authoritative unlock
+* Replay protection
+* Database-backed reservation
+* Atomic confirmation
+
+Fix functionality without weakening these guarantees.
+
+⸻
+
+19. DATABASE
+
+Inspect the production database configuration and verify that:
+
+* Connection works.
+* Required schema exists.
+* New Step 20 schema changes are available.
+* Signal guard capability column exists.
+* Letter records are correctly created.
+* No duplicate active letters are created.
+* Expiration fields are correct.
+* No test data is left behind.
+
+Do NOT delete real user data.
+
+Only remove test data that can be conclusively identified as test data.
+
+⸻
+
+20. PUBLIC DEPLOYMENT / REPLIT PUBLISH
+
+Because the application is now public:
+
+Determine whether the current public deployment is actually running the latest source code.
+
+Check:
+
+* Published revision
+* Build timestamp/version if available
+* API deployment version
+* Frontend deployment version
+* Database schema version
+
+If the public deployment is running stale code:
+
+* Identify the mismatch.
+* Prepare the corrected deployment.
+* Rebuild.
+* Verify before considering the issue fixed.
+
+Do not assume a successful local build means the public application is updated.
+
+⸻
+
+21. DO NOT MASK FAILURES
+
+This is extremely important.
+
+Do NOT solve failures by:
+
+* hiding broken UI
+* disabling the feature
+* replacing the 3D map with a fake screenshot
+* pretending camera is active
+* automatically falling back without explaining the actual failure
+* weakening server security
+* bypassing authorization
+* using fake coordinates
+* adding permanent test letters
+* suppressing console errors
+* catching everything and doing nothing
+
+If a feature cannot work on a specific browser/device, clearly implement the correct fallback and document the limitation.
+
+⸻
+
+22. FIX PRIORITY
+
+Prioritize issues in this order:
+
+P0 — Core production blockers
+
+1. Public application does not load
+2. Authentication broken
+3. API connectivity broken
+4. Camera/FIND broken
+5. God’s Eye View/3D map broken
+6. Location broken
+7. Letter creation broken
+8. AR Drop broken
+9. Proximity unlock broken
+
+P1 — Core UX failures
+
+10. Navigation broken
+11. Letter reading broken
+12. Replies broken
+13. Reveal broken
+14. My Letters broken
+15. Touch/pointer interaction bugs
+16. Mobile layout problems
+
+P2 — Quality issues
+
+17. Performance
+18. Loading states
+19. Error handling
+20. Accessibility
+21. Reduced motion
+22. Safari/Android edge cases
+
+Do not spend time polishing P2 issues while P0 functionality is broken.
+
+⸻
+
+23. IMPORTANT: DO NOT START A NEW STEP YET
+
+Do not proceed to a new numbered feature-development step.
+
+This is a stabilization and production-repair phase.
+
+Only after the existing product has been audited and repaired should we decide what the next product-development step is.
+
+⸻
+
+24. REQUIRED FINAL REPORT
+
+At the end, provide a factual report containing:
+
+A. Problems found
+
+List every actual problem discovered.
+
+For each:
+
+* Component
+* Root cause
+* Severity
+* Browser/device affected
+* Whether it affected production
+* Fix applied
+
+B. Problems fixed
+
+List every code/configuration/database change.
+
+C. Problems intentionally not fixed
+
+If something cannot be fixed because of browser/platform limitations, explain exactly why.
+
+D. Public deployment
+
+Confirm:
+
+* Public URL tested
+* Frontend production build
+* API production build
+* API health
+* Database
+* authentication
+* public API connectivity
+
+E. Camera
+
+State:
+
+* Whether camera works
+* On which browsers/devices
+* Whether rear camera works
+* Whether permissions work
+* Whether lifecycle works
+
+Do not say “camera implemented.”
+Say whether it actually works.
+
+F. God’s Eye View
+
+State:
+
+* Whether Cesium renders
+* WebGL version
+* Whether 3D works on tested devices
+* Whether fallback works
+* Any remaining limitations
+
+G. FIND
+
+State:
+
+* Camera
+* Compass
+* Location
+* Twin beams
+* Audio
+* Proximity
+* Letter opening
+
+H. AR Drop
+
+State:
+
+* Authorization
+* Placement
+* Repositioning
+* Confirmation
+* Active state
+* Walk-away
+* Recovery
+
+I. Security
+
+Confirm that Step 20 security guarantees remain intact.
+
+J. Validation
+
+Report:
+
+* Typecheck
+* Production build
+* API build
+* Health check
+* Browser testing
+* Mobile testing
+* Console errors
+* Network errors
+* git diff --check
+
+K. Remaining work
+
+Only list genuinely remaining issues.
+
+Do not mark something complete merely because the code exists.
+
+⸻
+
+FINAL PRINCIPLE
+
+The previous Step 20 report proves that a substantial architecture was implemented.
+
+This task must determine whether that architecture actually works in the public LINE application.
+
+The standard is no longer:
+
+“The code exists.”
+
+The standard is:
+
+“A real person can open the public LINE app on a real phone, use the camera, see the spatial world, place a letter, walk away, and another real person can find it.”
+
+Focus exclusively on making that true.

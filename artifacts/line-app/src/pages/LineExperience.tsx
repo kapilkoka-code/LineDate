@@ -729,8 +729,6 @@ function AppShell() {
   const composerOpenRef = useRef(false);
   const historyEntryRef = useRef(false);
   const closingComposerRef = useRef(false);
-  const loadedFindTargetRef = useRef<string | null>(null);
-
   const [storedLetters, setStoredLetters] = useState<import('@/services/api').NearbyLetterRecord[]>([]);
   const [findGuidanceOrigin, setFindGuidanceOrigin] = useState<Pick<import('@/hooks/useLocation').LocationData, 'latitude' | 'longitude'> | null>(null);
   const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -740,10 +738,8 @@ function AppShell() {
     if (activeView !== 'camera' || !location.location || !targetSignalId) {
       setStoredLetters([]);
       setFindGuidanceOrigin(null);
-      loadedFindTargetRef.current = null;
       return;
     }
-    if (loadedFindTargetRef.current === targetSignalId) return;
     let cancelled = false;
     setNearbyLoading(true);
     setNearbyError(null);
@@ -751,7 +747,6 @@ function AppShell() {
       .then((letters) => {
         if (!cancelled) {
           setStoredLetters(letters);
-          loadedFindTargetRef.current = targetSignalId;
           if (targetSignalId) {
             setFindGuidanceOrigin((origin) => origin ?? {
               latitude: location.location!.latitude,
@@ -772,7 +767,7 @@ function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [activeView, targetSignalId, location.location, location.location?.timestamp]); // add timestamp to re-fetch when location refreshes
+  }, [activeView, targetSignalId, location.location, location.location?.timestamp]);
 
   const nearbyLetters = useMemo(
     () => getNearbyLetters(
@@ -814,9 +809,9 @@ function AppShell() {
 
       if (!composerOpenRef.current) return;
 
-      // Keep the full-screen composer in place when the browser back button
-      // is pressed. The close control is the explicit way to leave the flow.
-      window.history.pushState({ lineLetterComposer: true }, '', window.location.href);
+      composerOpenRef.current = false;
+      historyEntryRef.current = false;
+      setComposerOpen(false);
     };
 
     window.addEventListener('popstate', handlePopState);

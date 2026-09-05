@@ -153,7 +153,10 @@ export function LetterComposer({ location, onClose }: LetterComposerProps) {
           letterId={letterId}
           text={trimmedText}
           location={location}
-          onSuccess={() => setStage('complete')}
+          onSuccess={() => {
+            setStage('complete');
+            location.requestLocation();
+          }}
           onCancel={() => {
             setLetterId(createLetterId());
             setStage('preview');

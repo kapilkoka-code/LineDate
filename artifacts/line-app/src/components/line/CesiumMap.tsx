@@ -54,6 +54,9 @@ export function CesiumMap({ location, signals, onSelect, onUnavailable }: Cesium
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const container = containerRef.current;
+    let disposed = false;
+    setInitializationError(null);
     const capabilityCanvas = document.createElement('canvas');
     const webgl2 = capabilityCanvas.getContext('webgl2');
     if (!webgl2) {
@@ -61,13 +64,13 @@ export function CesiumMap({ location, signals, onSelect, onUnavailable }: Cesium
       onUnavailable();
       return;
     }
-    webgl2.getExtension('WEBGL_lose_context')?.loseContext();
 
-    let viewer: Cesium.Viewer;
+    let viewer: Cesium.Viewer | null = null;
     let removeRenderErrorListener: (() => void) | null = null;
+    let resizeObserver: ResizeObserver | null = null;
     try {
       if (ION_TOKEN) Cesium.Ion.defaultAccessToken = ION_TOKEN;
-      viewer = new Cesium.Viewer(containerRef.current, {
+      viewer = new Cesium.Viewer(container, {
         animation: false,
         baseLayerPicker: false,
         geocoder: false,
@@ -82,7 +85,7 @@ export function CesiumMap({ location, signals, onSelect, onUnavailable }: Cesium
         baseLayer: false,
         requestRenderMode: true,
         maximumRenderTimeChange: Infinity,
-        creditContainer: creditsRef.current ?? containerRef.current,
+        creditContainer: creditsRef.current ?? container,
         msaaSamples: 1,
         contextOptions: {
           requestWebgl1: false,
@@ -95,6 +98,7 @@ export function CesiumMap({ location, signals, onSelect, onUnavailable }: Cesium
           },
         },
       });
+      viewerRef.current = viewer;
       viewer.targetFrameRate = 30;
       viewer.scene.screenSpaceCameraController.enableTilt = true;
       viewer.scene.screenSpaceCameraController.enableRotate = true;
@@ -104,6 +108,7 @@ export function CesiumMap({ location, signals, onSelect, onUnavailable }: Cesium
       viewer.scene.fog.density = 0.0012;
       viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#11100f');
       removeRenderErrorListener = viewer.scene.renderError.addEventListener(() => {
+        if (disposed) return;
         setInitializationError('The 3D view stopped unexpectedly.');
         onUnavailable();
       });
@@ -113,7 +118,6 @@ export function CesiumMap({ location, signals, onSelect, onUnavailable }: Cesium
         credit: new Cesium.Credit('© OpenStreetMap contributors'),
         maximumLevel: 19,
       });
-      imageryProvider.errorEvent.addEventListener(() => onUnavailable());
       const imageryLayer = viewer.imageryLayers.addImageryProvider(imageryProvider);
       imageryLayer.brightness = 0.2;
       imageryLayer.saturation = 0.15;
@@ -122,15 +126,16 @@ export function CesiumMap({ location, signals, onSelect, onUnavailable }: Cesium
       if (ION_TOKEN && ION_ASSET_ID) {
         void Cesium.Cesium3DTileset.fromIonAssetId(Number(ION_ASSET_ID))
           .then((tileset) => {
-            if (!viewer.isDestroyed()) viewer.scene.primitives.add(tileset);
+            if (!disposed && viewer && !viewer.isDestroyed()) viewer.scene.primitives.add(tileset);
           })
           .catch(() => {
             // The globe remains usable when optional 3D Tiles are unavailable.
           });
       }
 
-      viewer.screenSpaceEventHandler.setInputAction((movement: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
-        const picked = viewer.scene.pick(movement.position);
+      const activeViewer = viewer;
+      activeViewer.screenSpaceEventHandler.setInputAction((movement: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
+        const picked = activeViewer.scene.pick(movement.position);
         const pickedEntity = picked?.id;
         const pickedId = pickedEntity instanceof Cesium.Entity
           ? pickedEntity.properties?.lineSignalHandle?.getValue(Cesium.JulianDate.now())
@@ -138,16 +143,25 @@ export function CesiumMap({ location, signals, onSelect, onUnavailable }: Cesium
         if (typeof pickedId === 'string') onSelect(pickedId);
       }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-      viewerRef.current = viewer;
+      resizeObserver = new ResizeObserver(() => {
+        if (disposed || activeViewer.isDestroyed()) return;
+        activeViewer.resize();
+        activeViewer.scene.requestRender();
+      });
+      resizeObserver.observe(container);
     } catch (error) {
+      if (viewer && !viewer.isDestroyed()) viewer.destroy();
+      if (viewerRef.current === viewer) viewerRef.current = null;
       setInitializationError(error instanceof Error ? error.message : 'The 3D view could not start.');
       onUnavailable();
     }
 
     return () => {
+      disposed = true;
+      resizeObserver?.disconnect();
       removeRenderErrorListener?.();
-      if (viewerRef.current && !viewerRef.current.isDestroyed()) viewerRef.current.destroy();
-      viewerRef.current = null;
+      if (viewer && !viewer.isDestroyed()) viewer.destroy();
+      if (viewerRef.current === viewer) viewerRef.current = null;
       youEntityRef.current = null;
       signalEntitiesRef.current = [];
     };
@@ -166,7 +180,7 @@ export function CesiumMap({ location, signals, onSelect, onUnavailable }: Cesium
           color: Cesium.Color.fromCssColorString('#ffffff').withAlpha(0.9),
           outlineColor: Cesium.Color.fromCssColorString('#f35c4f').withAlpha(0.6),
           outlineWidth: 4,
-          heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+          heightReference: Cesium.HeightReference.NONE,
         },
         ellipse: {
           semiMinorAxis: 15.0,
@@ -225,7 +239,7 @@ export function CesiumMap({ location, signals, onSelect, onUnavailable }: Cesium
           color: Cesium.Color.fromCssColorString(beamColor).withAlpha(0.9),
           outlineColor: Cesium.Color.fromCssColorString('#f3e9d8').withAlpha(0.5),
           outlineWidth: 1,
-          heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+          heightReference: Cesium.HeightReference.NONE,
         },
       });
 
@@ -245,13 +259,17 @@ export function CesiumMap({ location, signals, onSelect, onUnavailable }: Cesium
       viewer.camera.lookAt(origin, new Cesium.HeadingPitchRange(0.35, -0.72, range));
       return;
     }
-    void viewer.camera.flyToBoundingSphere(
-      new Cesium.BoundingSphere(origin, 1),
-      {
-        offset: new Cesium.HeadingPitchRange(0.35, -0.72, range),
-        duration: 0.8,
-      },
-    );
+    try {
+      viewer.camera.flyToBoundingSphere(
+        new Cesium.BoundingSphere(origin, 1),
+        {
+          offset: new Cesium.HeadingPitchRange(0.35, -0.72, range),
+          duration: 0.8,
+        },
+      );
+    } catch {
+      // Navigation or teardown can cancel a camera transition.
+    }
   }, [location?.timestamp]);
 
   return (

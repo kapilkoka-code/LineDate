@@ -40,6 +40,11 @@ import {
 } from '@/services/worldArSession';
 
 type CameraState = 'prompt' | 'requesting' | 'granted' | 'denied' | 'simulated';
+type CameraFailure = {
+  kind: 'permission' | 'missing' | 'busy' | 'playback' | 'unsupported' | 'unknown';
+  title: string;
+  message: string;
+};
 
 type CameraViewProps = {
   location: LocationState;
@@ -75,6 +80,51 @@ const INITIAL_AR_DIAGNOSTICS: WorldArDiagnostics = {
   framesPerSecond: null,
 };
 
+function describeCameraFailure(error: unknown): CameraFailure {
+  const name = error instanceof DOMException || error instanceof Error ? error.name : '';
+
+  if (name === 'NotAllowedError' || name === 'SecurityError') {
+    return {
+      kind: 'permission',
+      title: 'CAMERA PERMISSION NEEDED',
+      message: 'Allow camera access in your browser settings, then try again. Map discovery is still available.',
+    };
+  }
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+    return {
+      kind: 'missing',
+      title: 'NO CAMERA FOUND',
+      message: 'This device does not expose a camera to the browser. Continue with map discovery.',
+    };
+  }
+  if (name === 'NotReadableError' || name === 'TrackStartError' || name === 'AbortError') {
+    return {
+      kind: 'busy',
+      title: 'CAMERA IS BUSY',
+      message: 'Another app may be using the camera. Close it, then try again.',
+    };
+  }
+  if (name === 'NotSupportedError') {
+    return {
+      kind: 'unsupported',
+      title: 'CAMERA NOT SUPPORTED',
+      message: 'This browser cannot start a live camera view. Continue with map discovery.',
+    };
+  }
+  if (name === 'CameraPlaybackError') {
+    return {
+      kind: 'playback',
+      title: 'CAMERA COULD NOT START',
+      message: 'The camera opened but the live view did not begin. Try again or continue with the map.',
+    };
+  }
+  return {
+    kind: 'unknown',
+    title: 'CAMERA UNAVAILABLE',
+    message: 'The live camera view could not start. Try again or continue with map discovery.',
+  };
+}
+
 function signalIntensity(distanceMeters: number, isUnlocked: boolean) {
   if (isUnlocked) return 1;
   if (distanceMeters <= 10) return 0.92;
@@ -102,6 +152,8 @@ export function CameraView({
   onNavigateHome,
 }: CameraViewProps) {
   const [cameraState, setCameraState] = useState<CameraState>('prompt');
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraFailure, setCameraFailure] = useState<CameraFailure | null>(null);
   const [manualHeading, setManualHeading] = useState(0);
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
   const [isNight, setIsNight] = useState(() => {
@@ -264,15 +316,43 @@ export function CameraView({
   }, [releaseCurrentStream]);
 
   const acquireCamera = useCallback(async () => {
-    if (!navigator.mediaDevices?.getUserMedia) return 'denied' as const;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraFailure({
+        kind: 'unsupported',
+        title: 'CAMERA NOT SUPPORTED',
+        message: 'This browser cannot start a live camera view. Continue with map discovery.',
+      });
+      return 'denied' as const;
+    }
     const requestId = cameraRequestRef.current + 1;
     cameraRequestRef.current = requestId;
+    setCameraReady(false);
+    setCameraFailure(null);
 
+    let stream: MediaStream | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      });
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: 'environment' } },
+          audio: false,
+        });
+      } catch (error) {
+        const errorName = error instanceof DOMException || error instanceof Error ? error.name : '';
+        const canRetryWithPreferredCamera = errorName === 'OverconstrainedError'
+          || errorName === 'ConstraintNotSatisfiedError'
+          || errorName === 'NotFoundError'
+          || error instanceof TypeError;
+        if (!canRetryWithPreferredCamera) throw error;
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false,
+        });
+      }
+
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack || videoTrack.readyState !== 'live') {
+        throw new DOMException('No live video track was returned.', 'NotReadableError');
+      }
       if (
         !mountedRef.current
         || cameraRequestRef.current !== requestId
@@ -286,31 +366,64 @@ export function CameraView({
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        void videoRef.current.play().catch(() => undefined);
+        void videoRef.current.play().catch((error) => {
+          if (cameraRequestRef.current !== requestId) return;
+          setCameraFailure(describeCameraFailure(
+            new DOMException(
+              error instanceof Error ? error.message : 'The live view did not begin.',
+              'CameraPlaybackError',
+            ),
+          ));
+          setCameraReady(false);
+          setCameraState('denied');
+          stopCamera();
+        });
       }
       return 'granted' as const;
-    } catch {
-      return cameraRequestRef.current === requestId ? 'denied' as const : 'cancelled' as const;
+    } catch (error) {
+      stream?.getTracks().forEach((track) => track.stop());
+      if (cameraRequestRef.current !== requestId) return 'cancelled' as const;
+      setCameraFailure(describeCameraFailure(error));
+      return 'denied' as const;
     }
-  }, [releaseCurrentStream]);
+  }, [releaseCurrentStream, stopCamera]);
+
+  const failCameraPlayback = useCallback((message?: string) => {
+    if (!mountedRef.current) return;
+    setCameraFailure(describeCameraFailure(
+      new DOMException(message ?? 'The live view did not begin.', 'CameraPlaybackError'),
+    ));
+    setCameraReady(false);
+    setCameraState('denied');
+    stopCamera();
+  }, [stopCamera]);
 
   const attachVideo = useCallback((node: HTMLVideoElement | null) => {
     videoRef.current = node;
     if (!node || !streamRef.current) return;
     node.srcObject = streamRef.current;
-    void node.play().catch(() => undefined);
-  }, []);
+    void node.play()
+      .then(() => {
+        if (!node.paused && node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          setCameraReady(true);
+        }
+      })
+      .catch((error) => failCameraPlayback(error instanceof Error ? error.message : undefined));
+  }, [failCameraPlayback]);
 
   const startExperience = useCallback(async () => {
     setCameraState('requesting');
+    setCameraReady(false);
+    setCameraFailure(null);
     if (!location.location) onRefresh();
-    const orientationRequest = orientation.requestPermission();
+    void orientation.requestPermission().catch(() => undefined);
     const audioRequest = audioEnabled
       ? initializeFindAudio().then(() => playFindSound('startup'))
       : Promise.resolve();
+    void audioRequest.catch(() => undefined);
 
     stopCamera();
-    const [cameraResult] = await Promise.all([acquireCamera(), orientationRequest, audioRequest]);
+    const cameraResult = await acquireCamera();
     if (!mountedRef.current) return;
     if (cameraResult === 'granted') setCameraState('granted');
     else if (cameraResult === 'denied') setCameraState('denied');
@@ -387,6 +500,23 @@ export function CameraView({
     const interval = window.setInterval(onRefresh, FIND_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [cameraState, cameraViewVisible, onRefresh]);
+
+  useEffect(() => {
+    if (cameraState !== 'granted' || cameraReady || !cameraViewVisible) return;
+    const timeout = window.setTimeout(() => {
+      const video = videoRef.current;
+      if (
+        !video
+        || video.paused
+        || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+        || video.videoWidth === 0
+        || video.videoHeight === 0
+      ) {
+        failCameraPlayback();
+      }
+    }, 8_000);
+    return () => window.clearTimeout(timeout);
+  }, [cameraReady, cameraState, cameraViewVisible, failCameraPlayback]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -579,15 +709,17 @@ export function CameraView({
       return;
     }
 
-    void initializeFindAudio().then(() => {
-      if (
-        !mountedRef.current
-        || audioSceneRequestRef.current !== requestId
-        || document.visibilityState !== 'visible'
-      ) return;
-      const nextDiagnostics = updateFindAudioScene(scene);
-      if (DEVELOPMENT_MODE) setAudioDiagnostics(nextDiagnostics);
-    });
+    void initializeFindAudio()
+      .then(() => {
+        if (
+          !mountedRef.current
+          || audioSceneRequestRef.current !== requestId
+          || document.visibilityState !== 'visible'
+        ) return;
+        const nextDiagnostics = updateFindAudioScene(scene);
+        if (DEVELOPMENT_MODE) setAudioDiagnostics(nextDiagnostics);
+      })
+      .catch(() => undefined);
     return () => {
       if (audioSceneRequestRef.current === requestId) audioSceneRequestRef.current += 1;
     };
@@ -767,9 +899,9 @@ export function CameraView({
           <span className="line-header-index line-mono">02 / FIND</span>
         </header>
         <div className="line-find-intro">
-          <span className="line-section-index line-mono">CAMERA UNAVAILABLE</span>
+          <span className="line-section-index line-mono">{cameraFailure?.title ?? 'CAMERA UNAVAILABLE'}</span>
           <h1 className="line-serif">The signal is still there.</h1>
-          <p>Camera access is needed for FIND. You can continue with the existing map.</p>
+          <p>{cameraFailure?.message ?? 'Camera access is needed for FIND. You can continue with map discovery.'}</p>
         </div>
         <div className="line-camera-actions">
           <button type="button" className="line-btn-primary line-mono" onClick={onNavigateHome} data-testid="button-fallback-discover">
@@ -834,6 +966,8 @@ export function CameraView({
     ? worldArDiagnostics.trackingState !== 'tracking'
       ? ['CALIBRATING', 'Calibrating surroundings…']
       : ['LIGHT ANCHORED', 'The light is fixed around you.']
+    : cameraState === 'granted' && !cameraReady
+      ? ['PREPARING CAMERA', 'Starting the live view…']
     : primaryStatus;
 
   return (
@@ -847,7 +981,16 @@ export function CameraView({
       onPointerCancel={handlePointerEnd}
     >
       {cameraState === 'granted' && !worldArActive ? (
-        <video ref={attachVideo} autoPlay playsInline muted className="line-camera-video" aria-label="Live rear camera view" />
+        <video
+          ref={attachVideo}
+          autoPlay
+          playsInline
+          muted
+          className="line-camera-video"
+          aria-label="Live camera view"
+          onPlaying={() => setCameraReady(true)}
+          onError={() => failCameraPlayback(videoRef.current?.error?.message)}
+        />
       ) : !worldArActive ? (
         <div className="line-camera-simulated-bg" aria-label="Development camera simulation">
           <div className="line-simulated-grid" style={{ backgroundPositionX: `${-visualHeading * 4}px` }} />

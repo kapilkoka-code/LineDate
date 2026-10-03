@@ -6,7 +6,8 @@ import { api, ApiError } from '@/services/api';
 import type { LocationState, LocationData } from '@/hooks/useLocation';
 import { useOrientationController, normalizeDegrees, signedAngleDifference } from '@/hooks/useOrientationController';
 import { useArCapability } from '@/hooks/useArCapability';
-import { startWorldArSession, type WorldArController } from '@/spatial/adapters/webxr';
+import { startWorldArSession, type WorldArController, type WorldArDiagnostics } from '@/spatial/adapters/webxr';
+import { createSpatialAnchorFrameDraft, type SpatialAnchorFrameDraft } from '@/spatial/anchorFrame';
 
 type DropPlacementProps = {
   letterId: string;
@@ -51,6 +52,7 @@ export function DropPlacement({ letterId, text, location, onSuccess, onCancel }:
   
   const [worldArActive, setWorldArActive] = useState(false);
   const [worldArStarting, setWorldArStarting] = useState(false);
+  const [worldArDiagnostics, setWorldArDiagnostics] = useState<WorldArDiagnostics | null>(null);
   const [activeDistance, setActiveDistance] = useState<number>(3); // distance from anchored point in active state
   
   // Dev simulations
@@ -66,6 +68,7 @@ export function DropPlacement({ letterId, text, location, onSuccess, onCancel }:
   const mountedRef = useRef(true);
   const dragRef = useRef<{ pointerId: number; startX: number; startYaw: number } | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  const anchorFrameDraftRef = useRef<SpatialAnchorFrameDraft | null>(null);
 
   const authAttemptedRef = useRef(false);
   const confirmAttemptedRef = useRef(false);
@@ -201,6 +204,18 @@ export function DropPlacement({ letterId, text, location, onSuccess, onCancel }:
       });
       if (mountedRef.current) {
         anchorLocRef.current = { lat: loc!.latitude, lng: loc!.longitude };
+        if (worldArDiagnostics?.primaryAnchorPosition) {
+          anchorFrameDraftRef.current = createSpatialAnchorFrameDraft({
+            adapter: 'webxr',
+            geographicHint: {
+              latitude: loc!.latitude,
+              longitude: loc!.longitude,
+              accuracyMeters: loc!.accuracy,
+              observedAt: loc!.timestamp,
+            },
+            anchorPosition: worldArDiagnostics.primaryAnchorPosition,
+          });
+        }
         worldArControllerRef.current?.setActive?.();
         setDropState('active');
       }
@@ -219,7 +234,7 @@ export function DropPlacement({ letterId, text, location, onSuccess, onCancel }:
         }
       }
     }
-  }, [dropHandle, getEffectiveLocation, location]);
+  }, [dropHandle, getEffectiveLocation, location, worldArDiagnostics]);
 
   useEffect(() => {
     if (dropState === 'authorizing' && !authAttemptedRef.current) {
@@ -344,10 +359,13 @@ export function DropPlacement({ letterId, text, location, onSuccess, onCancel }:
           isUnlocked: dropState === 'active'
         }],
         onControllerReady: (c) => { worldArControllerRef.current = c; },
-        onDiagnostics: () => {},
+        onDiagnostics: (diagnostics) => {
+          if (mountedRef.current) setWorldArDiagnostics(diagnostics);
+        },
         onEnded: () => {
           worldArControllerRef.current = null;
           if (mountedRef.current) {
+            setWorldArDiagnostics(null);
             setWorldArActive(false);
             setWorldArStarting(false);
             if (dropState !== 'active' && dropState !== 'interrupted' && dropState !== 'failed') {
@@ -559,6 +577,11 @@ export function DropPlacement({ letterId, text, location, onSuccess, onCancel }:
           <button onClick={() => { setDropHandle(null); setError('Simulated expiry'); setDropState('failed'); }} style={{border: '1px solid #555', padding: 4}}>Auth Expire</button>
           <button onClick={() => { anchorLocRef.current = {lat: location.location?.latitude || 0, lng: location.location?.longitude || 0}; setDropState('active'); }} style={{border: '1px solid #555', padding: 4}}>Force Active</button>
           <div style={{width: '100%', fontSize: '9px', opacity: 0.8}}>State: {dropState} | Cam: {cameraState} | AR: {worldArActive?'On':(worldArStarting?'Starting':'Off')} | Dist: {Math.round(activeDistance)}m</div>
+          <div style={{width: '100%', fontSize: '9px', opacity: 0.8}}>
+            Anchor: {worldArDiagnostics?.primaryAnchorPosition
+              ? `${worldArDiagnostics.primaryAnchorPosition.x.toFixed(2)}, ${worldArDiagnostics.primaryAnchorPosition.y.toFixed(2)}, ${worldArDiagnostics.primaryAnchorPosition.z.toFixed(2)}`
+              : 'pending'} | Losses: {worldArDiagnostics?.trackingLosses ?? 0} | Draft: {anchorFrameDraftRef.current ? 'captured' : 'none'}
+          </div>
         </div>
       )}
     </div>

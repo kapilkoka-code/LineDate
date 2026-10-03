@@ -37,7 +37,7 @@ import {
   type WorldArController,
   type WorldArDiagnostics,
   type WorldArEndReason,
-} from '@/services/worldArSession';
+} from '@/spatial/adapters/webxr';
 
 type CameraState = 'prompt' | 'requesting' | 'granted' | 'denied' | 'simulated';
 type CameraFailure = {

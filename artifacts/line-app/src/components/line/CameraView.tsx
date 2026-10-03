@@ -74,6 +74,7 @@ const INITIAL_AR_DIAGNOSTICS: WorldArDiagnostics = {
   confidence: 'unavailable',
   cameraPosition: null,
   cameraOrientation: null,
+  primaryAnchorPosition: null,
   anchorState: 'ended',
   referenceSpace: 'unavailable',
   trackingLosses: 0,

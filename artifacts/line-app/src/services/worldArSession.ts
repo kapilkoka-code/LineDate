@@ -13,6 +13,7 @@ export type WorldArDiagnostics = {
   confidence: 'unavailable' | 'low' | 'high';
   cameraPosition: { x: number; y: number; z: number } | null;
   cameraOrientation: { x: number; y: number; z: number; w: number } | null;
+  primaryAnchorPosition: { x: number; y: number; z: number } | null;
   anchorState: 'pending' | 'fixed-local-reference' | 'ended';
   referenceSpace: 'local-floor' | 'local' | 'unavailable';
   trackingLosses: number;
@@ -205,6 +206,26 @@ function pushVerticalQuad({
   pushVertex(vertices, firstX, baseY + height, firstZ, topAlpha);
 }
 
+function calculateWorldAnchorPosition(
+  signal: WorldArSignal,
+  headingDegrees: number,
+  viewerYawDegrees: number,
+  viewerPosition: { x: number; z: number },
+  baseY: number,
+) {
+  const relativeDegrees = normalizeSignedDegrees(signal.bearingDegrees - headingDegrees);
+  const angle = (viewerYawDegrees + relativeDegrees) * Math.PI / 180;
+  const distance = Math.max(2, Math.min(100, signal.distanceMeters));
+
+  return {
+    x: viewerPosition.x + Math.sin(angle) * distance,
+    y: baseY,
+    z: viewerPosition.z - Math.cos(angle) * distance,
+    angle,
+    distance,
+  };
+}
+
 function buildWorldLightGeometry(
   signals: WorldArSignal[],
   headingDegrees: number,
@@ -215,11 +236,16 @@ function buildWorldLightGeometry(
   const vertices: number[] = [];
 
   for (const signal of signals.slice(0, 3)) {
-    const relativeDegrees = normalizeSignedDegrees(signal.bearingDegrees - headingDegrees);
-    const angle = (viewerYawDegrees + relativeDegrees) * Math.PI / 180;
-    const distance = Math.max(2, Math.min(100, signal.distanceMeters));
-    const anchorX = viewerPosition.x + Math.sin(angle) * distance;
-    const anchorZ = viewerPosition.z - Math.cos(angle) * distance;
+    const anchor = calculateWorldAnchorPosition(
+      signal,
+      headingDegrees,
+      viewerYawDegrees,
+      viewerPosition,
+      baseY,
+    );
+    const { angle, distance } = anchor;
+    const anchorX = anchor.x;
+    const anchorZ = anchor.z;
     const perpendicularX = Math.cos(angle);
     const perpendicularZ = Math.sin(angle);
     const separation = 1.05 + distance * 0.005;
@@ -317,6 +343,7 @@ export async function startWorldArSession({
   let trackingLosses = 0;
   let trackingState: WorldArTrackingState = 'starting';
   let anchorReady = false;
+  let primaryAnchorPosition: WorldArDiagnostics['primaryAnchorPosition'] = null;
 
   const emitDiagnostics = (
     cameraPosition: WorldArDiagnostics['cameraPosition'],
@@ -327,6 +354,7 @@ export async function startWorldArSession({
       confidence: trackingState === 'tracking' ? 'high' : trackingState === 'lost' ? 'low' : 'unavailable',
       cameraPosition,
       cameraOrientation,
+      primaryAnchorPosition,
       anchorState: ended ? 'ended' : anchorReady ? 'fixed-local-reference' : 'pending',
       referenceSpace: referenceSpaceKind,
       trackingLosses,
@@ -448,13 +476,24 @@ export async function startWorldArSession({
         const baseY = referenceSpaceKind === 'local-floor'
           ? 0
           : pose.transform.position.y - 1.5;
+        const viewerYawDegrees = viewerYawDegreesFromOrientation(pose.transform.orientation);
         geometry = buildWorldLightGeometry(
           activeSignals,
           headingDegrees,
-          viewerYawDegreesFromOrientation(pose.transform.orientation),
+          viewerYawDegrees,
           viewerPosition,
           baseY,
         );
+        const primarySignal = activeSignals[0];
+        primaryAnchorPosition = primarySignal
+          ? calculateWorldAnchorPosition(
+              primarySignal,
+              headingDegrees,
+              viewerYawDegrees,
+              viewerPosition,
+              baseY,
+            )
+          : null;
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, geometry, gl.STATIC_DRAW);
         anchorReady = true;

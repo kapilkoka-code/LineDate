@@ -6,7 +6,7 @@ import { api, ApiError } from '@/services/api';
 import type { LocationState, LocationData } from '@/hooks/useLocation';
 import { useOrientationController, normalizeDegrees, signedAngleDifference } from '@/hooks/useOrientationController';
 import { useArCapability } from '@/hooks/useArCapability';
-import { startWorldArSession, type WorldArController } from '@/services/worldArSession';
+import { startWorldArSession, type WorldArController } from '@/spatial/adapters/webxr';
 
 type DropPlacementProps = {
   letterId: string;
